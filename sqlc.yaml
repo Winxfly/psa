@@ -1,0 +1,20 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema: "./migrations"
+    queries: "./internal/repository/postgresql/sqlc"
+    gen:
+      go:
+        emit_json_tags: true
+        package: "postgresql"
+        out: "internal/repository/postgresql/generated"
+        sql_package: "pgx/v5" # only pgx/v5 default using preparing queries
+        overrides:
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - db_type: "timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"

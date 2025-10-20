@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:16.2
+    container_name: psa_postgres
+    environment:
+      POSTGRES_USER: psalocal
+      POSTGRES_PASSWORD: psalocal
+      POSTGRES_DB: psalocal
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - psa-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U psalocal -d psalocal"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrator:
+    build:
+      context: .
+      dockerfile: tools/migrator/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      CONFIG_PATH: /config/docker.yaml
+    volumes:
+      - ./config:/config
+      - ./migrations:/migrations
+      - ./.env:/.env
+    command: ["--migrations-path=/migrations"]
+    networks:
+      - psa-network
+
+  create-admin:
+    build:
+      context: .
+      dockerfile: tools/admin/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      CONFIG_PATH: /config/local.yaml
+    volumes:
+      - ./config:/config
+      - ./.env:/.env
+    networks:
+      - psa-network
+
+  app:
+    build:
+      context: .
+      dockerfile: cmd/psa/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      CONFIG_PATH: /config/local.yaml
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/config
+      - ./.env:/.env
+    networks:
+      - psa-network
+
+volumes:
+  postgres_data:
+
+networks:
+  psa-network:
+    driver: bridge
