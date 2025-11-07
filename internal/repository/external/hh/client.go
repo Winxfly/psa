@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"psa/internal/config"
 	"psa/internal/entity"
-	"psa/internal/repository/external/hh/token"
 	"psa/pkg/retry"
 	"strings"
 	"time"
@@ -24,19 +23,24 @@ const (
 	baseURL = "https://api.hh.ru/vacancies"
 )
 
-type Client struct {
-	client  *http.Client
-	limiter *rate.Limiter
-	cfg     *config.Config
-	token   *token.TokenManager
-	logger  *slog.Logger
+type TokenProvider interface {
+	GetToken(ctx context.Context) (string, error)
+	HandleAuthError()
 }
 
-func New(logger *slog.Logger, client *http.Client, cfg *config.Config, token *token.TokenManager) *Client {
+type Client struct {
+	cfg     *config.Config
+	logger  *slog.Logger
+	client  *http.Client
+	limiter *rate.Limiter
+	token   TokenProvider
+}
+
+func New(cfg *config.Config, logger *slog.Logger, client *http.Client, token TokenProvider) *Client {
 	return &Client{
+		cfg:     cfg,
 		logger:  logger,
 		client:  client,
-		cfg:     cfg,
 		limiter: rate.NewLimiter(5, 5),
 		token:   token,
 	}

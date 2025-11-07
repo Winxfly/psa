@@ -73,3 +73,9 @@ postgres-down:
 # Полностью удалить контейнер PostgreSQL и том
 postgres-clean:
 	docker compose down -v --remove-orphans
+
+redis-up:
+	docker compose up -d redis
+
+redis-down:
+	docker compose stop redis

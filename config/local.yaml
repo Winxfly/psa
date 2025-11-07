@@ -6,6 +6,11 @@ storage_path:
   port: 5432
   database: "psalocal"
   ssl_mode: "disable"
+redis:
+  addr: "redis:6379"
+  password: ""
+  db: 0
+  default_ttl: "24h"
 http_server:
   host: "0.0.0.0"
   port: "8080"

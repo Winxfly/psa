@@ -6,6 +6,8 @@ import (
 )
 
 func TestExtractSkills(t *testing.T) {
+	ext := extractor.New()
+
 	tests := []struct {
 		name      string
 		text      string
@@ -69,7 +71,7 @@ func TestExtractSkills(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := extractor.ExtractSkills(tt.text, tt.whiteList, tt.maxNgram)
+			result, err := ext.ExtractSkills(tt.text, tt.whiteList, tt.maxNgram)
 
 			if tt.wantError {
 				if err == nil {

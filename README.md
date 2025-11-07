@@ -23,7 +23,7 @@
 
 - **БД**: PostgreSQL, драйвер pgx
 
-- **Миграции**: [migrate](github.com/golang-migrate/migrate/v4 v4.18.3)
+- **Миграции**: [migrate](github.com/golang-migrate/migrate)
 
 - **Генерация SQL**: [sqlc](https://github.com/sqlc-dev/sqlc)
 
@@ -31,11 +31,9 @@
 
 - **Контейнеризация**: Docker & Docker Compose
 
-- **Rate limiter**: встроенный лимитер для HH API (допустимо 5 запросов в секунду)
+- **Rate limiter**: встроенный rate.Limiter для HH API (допустимо 5 запросов в секунду)
 
 - **Retry**: Equal Jitter
-
-- **Шаблон**: [evrone/go-clean-template](https://github.com/evrone/go-clean-template/tree/master)
 
 ### Как это работает
 

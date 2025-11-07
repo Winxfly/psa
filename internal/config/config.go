@@ -15,6 +15,7 @@ type Config struct {
 	HTTPServer  HTTPServer  `yaml:"http_server"`
 	HHAuth      HHAuth
 	HHRetry     HHRetry `yaml:"hh_retry"`
+	Redis       Redis   `yaml:"redis"`
 }
 
 type HTTPServer struct {
@@ -31,6 +32,13 @@ type StoragePath struct {
 	Port     int    `yaml:"port" env:"DB_PORT" env-required:"true"`
 	Database string `yaml:"database" env:"DB_NAME" env-required:"true"`
 	SSLMode  string `yaml:"ssl_mode" env-required:"true"`
+}
+
+type Redis struct {
+	Addr       string        `yaml:"addr" env:"REDIS_ADDR" env-required:"true"`
+	Password   string        `yaml:"password" env:"REDIS_PASSWORD" env-required:"true"`
+	DB         int           `yaml:"db" env:"REDIS_DB" env-required:"true"`
+	DefaultTTL time.Duration `yaml:"default_ttl" env:"REDIS_DEFAULT_TTL" env-required:"true"`
 }
 
 type HHAuth struct {

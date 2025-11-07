@@ -12,12 +12,18 @@ var (
 	handlingSpacesRegex                = regexp.MustCompile(`\s+`)
 )
 
+type Extractor struct{}
+
+func New() *Extractor {
+	return &Extractor{}
+}
+
 // ExtractSkills returns a dictionary of found skills with the number of mentions, using N-gram algorithm.
 //
 // text - source text for analysis.
 // whiteList - dictionary of allowed skills (the key is the skill, the value is ignored).
 // maxNgram - maximum N-gram length (number of words in a phrase).
-func ExtractSkills(text string, whiteList map[string]int, maxNgram int) (map[string]int, error) {
+func (e *Extractor) ExtractSkills(text string, whiteList map[string]int, maxNgram int) (map[string]int, error) {
 	if text == "" {
 		return nil, errors.New("text cannot be empty")
 	}
