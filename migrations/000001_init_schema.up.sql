@@ -65,7 +65,6 @@ CREATE TABLE refresh_tokens
     PRIMARY KEY (user_id, hashed_token)
 );
 
--- Часто выбираем по дате + профессии
 CREATE INDEX idx_skill_formal_scraped_profession ON skill_formal (scraped_at_id, profession_id);
 CREATE INDEX idx_skill_extracted_scraped_profession ON skill_extracted (scraped_at_id, profession_id);
 CREATE INDEX idx_stat_scraped_profession ON stat (scraped_at_id, profession_id);
