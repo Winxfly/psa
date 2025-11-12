@@ -23,6 +23,8 @@
 
 - **БД**: PostgreSQL, драйвер pgx
 
+- **Кэш**: Redis
+
 - **Миграции**: [migrate](github.com/golang-migrate/migrate)
 
 - **Генерация SQL**: [sqlc](https://github.com/sqlc-dev/sqlc)

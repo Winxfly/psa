@@ -2,8 +2,10 @@ package postgresql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"psa/internal/entity"
 )
 
@@ -12,6 +14,10 @@ func (s *Storage) GetUserByEmail(ctx context.Context, email string) (*entity.Use
 
 	user, err := s.Queries.GetUserByEmail(ctx, email)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -29,6 +35,10 @@ func (s *Storage) GetUserByID(ctx context.Context, id uuid.UUID) (*entity.User, 
 
 	user, err := s.Queries.GetUserByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 

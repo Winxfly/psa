@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"psa/internal/config"
 	"psa/internal/entity"
-	"psa/pkg/retry"
 	"strings"
 	"time"
 )
@@ -131,7 +130,7 @@ func (c *Client) doRequestWithRetry(ctx context.Context, req *http.Request) (*ht
 			c.token.HandleAuthError()
 		}
 
-		if retry.IsRetryable(resp.StatusCode) && attempt < c.cfg.HHRetry.MaxAttempts-1 {
+		if isRetryable(resp.StatusCode) && attempt < c.cfg.HHRetry.MaxAttempts-1 {
 			resp.Body.Close()
 			wait := c.calculateWait(attempt)
 			select {
@@ -324,4 +323,15 @@ func (c *Client) DataProfession(ctx context.Context, query, area string) ([]enti
 	}
 
 	return data, nil
+}
+
+func isRetryable(statusCode int) bool {
+	switch statusCode {
+	case http.StatusTooManyRequests:
+		return true
+	case http.StatusForbidden:
+		return true
+	default:
+		return statusCode >= 500 && statusCode < 600
+	}
 }

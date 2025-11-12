@@ -62,6 +62,6 @@ func (s *Storage) DeleteRefreshToken(ctx context.Context, userID uuid.UUID, hash
 	return nil
 }
 
-func (s *Storage) DeleteExpiresRefreshTokens(ctx context.Context) error {
+func (s *Storage) DeleteExpiredRefreshTokens(ctx context.Context) error {
 	return s.Queries.DeleteExpiredRefreshTokens(ctx)
 }
