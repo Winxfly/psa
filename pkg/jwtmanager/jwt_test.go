@@ -326,3 +326,54 @@ func TestJWTManager_ConcurrentUsage(t *testing.T) {
 		require.NoError(t, err)
 	}
 }
+
+func TestJWTManager_VeryShortTTL(t *testing.T) {
+	manager := setupManager("secret", time.Nanosecond, time.Hour)
+	userID := uuid.New()
+
+	token, err := manager.GenerateAccessToken(userID, "user")
+	require.NoError(t, err)
+
+	time.Sleep(time.Microsecond)
+
+	_, err = manager.ParseToken(token)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, jwt.ErrTokenExpired))
+}
+
+func TestJWTManager_RefreshTokenHasEmptyRole(t *testing.T) {
+	manager := setupManager("secret", time.Minute, time.Hour)
+	userID := uuid.New()
+
+	refreshToken, err := manager.GenerateRefreshToken(userID)
+	require.NoError(t, err)
+
+	claims, err := manager.ParseToken(refreshToken)
+	require.NoError(t, err)
+	require.Equal(t, "", claims.Role)
+}
+
+func TestJWTManager_ExtractUserIDFromRefreshToken(t *testing.T) {
+	manager := setupManager("secret", time.Minute, time.Hour)
+	userID := uuid.New()
+
+	refreshToken, err := manager.GenerateRefreshToken(userID)
+	require.NoError(t, err)
+
+	extractedID, err := manager.ExtractUserID(refreshToken)
+	require.NoError(t, err)
+	require.Equal(t, userID, extractedID)
+}
+
+func TestHashToken_EdgeCases(t *testing.T) {
+	t.Run("very_long_token", func(t *testing.T) {
+		longToken := strings.Repeat("abcd", 10000)
+		hashed := jwtmanager.HashToken(longToken)
+		require.NotEmpty(t, hashed)
+
+		h := sha256.New()
+		h.Write([]byte(longToken))
+		expected := base64.StdEncoding.EncodeToString(h.Sum(nil))
+		require.Equal(t, expected, hashed)
+	})
+}
