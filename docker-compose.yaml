@@ -44,7 +44,7 @@ services:
     env_file:
       - .env
     environment:
-      CONFIG_PATH: ${CONFIG_PATH:-/config/local.yaml}
+      CONFIG_PATH: ${CONFIG_PATH}
     volumes:
       - ./config:/config
       - ./migrations:/migrations
@@ -63,12 +63,13 @@ services:
     env_file:
       - .env
     environment:
-      CONFIG_PATH: ${CONFIG_PATH:-/config/local.yaml}
+      CONFIG_PATH: ${CONFIG_PATH}
     volumes:
       - ./config:/config
       - ./.env:/.env
     networks:
       - psa-network
+    restart: no
 
   app:
     build:
@@ -82,7 +83,7 @@ services:
     env_file:
       - .env
     environment:
-      CONFIG_PATH: ${CONFIG_PATH:-/config/local.yaml}
+      CONFIG_PATH: ${CONFIG_PATH}
     ports:
       - "8080:8080"
     volumes:

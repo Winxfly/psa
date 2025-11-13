@@ -16,6 +16,7 @@ type Config struct {
 	HHAuth      HHAuth
 	HHRetry     HHRetry `yaml:"hh_retry"`
 	Redis       Redis   `yaml:"redis"`
+	JWT         JWT     `yaml:"jwt"`
 }
 
 type HTTPServer struct {
@@ -31,7 +32,7 @@ type StoragePath struct {
 	Host     string `yaml:"host" env:"DB_HOST" env-required:"true"`
 	Port     int    `yaml:"port" env:"DB_PORT" env-required:"true"`
 	Database string `yaml:"database" env:"DB_NAME" env-required:"true"`
-	SSLMode  string `yaml:"ssl_mode" env-required:"true"`
+	SSLMode  string `yaml:"ssl_mode" env-default:"disable"`
 }
 
 type Redis struct {
@@ -54,6 +55,13 @@ type HHRetry struct {
 	MaxDelay     time.Duration `yaml:"max_delay" env-default:"15s"`
 	Multiplier   float64       `yaml:"multiplier" env-default:"2.0"`
 	MaxTotalTime time.Duration `yaml:"max_total_time" env-default:"45s"`
+}
+
+type JWT struct {
+	Secret          string        `env:"JWT_SECRET" env-required:"true"`
+	AccessTokenTTL  time.Duration `yaml:"access_token_ttl" env:"JWT_ACCESS_TOKEN_TTL" env-default:"15m"`
+	RefreshTokenTTL time.Duration `yaml:"refresh_token_ttl" env:"JWT_REFRESH_TOKEN_TTL" env-default:"168h"`
+	Issuer          string        `yaml:"issuer" env:"JWT_ISSUER" env-default:"psa-service"`
 }
 
 func MustLoad() *Config {

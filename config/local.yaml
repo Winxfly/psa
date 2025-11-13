@@ -1,4 +1,5 @@
 env: "local"
+
 storage_path:
   username: "psalocal"
   password: "psalocal"
@@ -6,19 +7,27 @@ storage_path:
   port: 5432
   database: "psalocal"
   ssl_mode: "disable"
+
 redis:
   addr: "redis:6379"
   password: ""
   db: 0
   default_ttl: "24h"
+
 http_server:
   host: "0.0.0.0"
   port: "8080"
   timeout: 4s
   idle_timeout: 30s
+
 hh_retry:
   max_attempts: 3
   initial_delay: 250ms
   max_delay: 15s
   multiplier: 2.0
   max_total_time: 45s
+
+jwt:
+  access_token_ttl: 15m
+  refresh_token_ttl: 168h
+  issuer: "psa-service"
