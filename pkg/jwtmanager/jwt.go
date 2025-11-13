@@ -1,12 +1,17 @@
-package jwt
+package jwtmanager
 
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"time"
+)
+
+var (
+	ErrInvalidUserID = errors.New("invalid user id")
 )
 
 type Manager struct {
@@ -65,8 +70,6 @@ func (j *Manager) GenerateRefreshToken(userID uuid.UUID) (string, error) {
 }
 
 func (j *Manager) ParseToken(tokenString string) (*TokenClaims, error) {
-	const op = "pkg.jwt.ParseToken"
-
 	token, err := jwt.ParseWithClaims(tokenString, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -75,12 +78,12 @@ func (j *Manager) ParseToken(tokenString string) (*TokenClaims, error) {
 		return j.secret, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+		return nil, err
 	}
 
 	claims, ok := token.Claims.(*TokenClaims)
 	if !ok || !token.Valid {
-		return nil, fmt.Errorf("%s: invalid token", op)
+		return nil, jwt.ErrTokenInvalidClaims
 	}
 
 	return claims, nil
@@ -95,16 +98,14 @@ func HashToken(token string) string {
 }
 
 func (j *Manager) ExtractUserID(token string) (uuid.UUID, error) {
-	const op = "pkg.jwt.ExtractUserID"
-
 	claims, err := j.ParseToken(token)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("%s: %w", op, err)
+		return uuid.Nil, err
 	}
 
 	userID, err := uuid.Parse(claims.Subject)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid user id in token: %w", err)
+		return uuid.Nil, fmt.Errorf("%w: %v", ErrInvalidUserID, err)
 	}
 
 	return userID, nil
