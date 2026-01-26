@@ -9,15 +9,19 @@ import (
 	"os/signal"
 	"psa/internal/config"
 	controllerhttp "psa/internal/controller/http"
+	"psa/internal/controller/http/v1/handler/admin"
+	"psa/internal/controller/http/v1/handler/public"
 	"psa/internal/repository/external/hh"
 	"psa/internal/repository/external/hh/token"
 	"psa/internal/repository/postgresql"
 	"psa/internal/repository/redis"
+	"psa/internal/usecase/auth"
 	"psa/internal/usecase/cron"
 	"psa/internal/usecase/extractor"
 	"psa/internal/usecase/provider"
 	"psa/internal/usecase/scraper"
 	"psa/pkg/httpserver"
+	"psa/pkg/jwtmanager"
 	"psa/pkg/logger/slogx"
 	"syscall"
 	"time"
@@ -26,6 +30,7 @@ import (
 func Run(cfg *config.Config, log *slog.Logger) error {
 	const op = "internal.app.Run"
 
+	// infrastructure
 	db, err := postgresql.New(cfg.StoragePath)
 	if err != nil {
 		return fmt.Errorf("init storage: %w", err)
@@ -39,9 +44,12 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	defer cache.Close()
 
 	httpClient := &http.Client{Timeout: 30 * time.Second}
-	tokenManager := token.NewTokenManager(cfg.HHAuth, log)
-	hhClient := hh.New(cfg, log, httpClient, tokenManager)
 
+	// external services
+	hhTokenManager := token.NewTokenManager(cfg.HHAuth, log)
+	hhClient := hh.New(cfg, log, httpClient, hhTokenManager)
+
+	// usecases/services
 	skillExtractor := extractor.New()
 
 	scraping := scraper.New(
@@ -61,12 +69,45 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 
 	professionProvider := provider.New(log, db, db, db, db, cache)
 
+	jwtManager := jwtmanager.NewJWT(
+		cfg.JWT.Secret,
+		cfg.JWT.AccessTokenTTL,
+		cfg.JWT.RefreshTokenTTL,
+		cfg.JWT.Issuer,
+	)
+
+	jwtAdapter := auth.NewJWTAdapter(jwtManager)
+
+	authUC := auth.New(
+		log,
+		db,
+		db,
+		jwtAdapter,
+		cfg.JWT.AccessTokenTTL,
+		cfg.JWT.RefreshTokenTTL,
+	)
+
+	// HTTP handlers v1
+	authPublicHandler := public.NewAuthHandler(log, authUC)
+	professionPublicHandler := public.NewProfessionHandler(log, professionProvider)
+	professionAdminHandler := admin.NewProfessionAdminHandler(log, professionProvider)
+
+	httpHandlers := controllerhttp.V1Handlers{
+		AuthPublic:       authPublicHandler,
+		ProfessionPublic: professionPublicHandler,
+		ProfessionAdmin:  professionAdminHandler,
+	}
+
 	// HTTP Router
-	handler := controllerhttp.NewRouter(log, professionProvider)
+	router := controllerhttp.NewRouter(
+		log,
+		httpHandlers,
+		authUC,
+	)
 
 	// HTTP Server
 	httpServer := httpserver.New(
-		handler,
+		router,
 		httpserver.Port(cfg.HTTPServer.Port),
 		httpserver.ReadTimeout(cfg.HTTPServer.Timeout),
 		httpserver.WriteTimeout(cfg.HTTPServer.Timeout),
@@ -76,6 +117,7 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	httpServer.Start()
 	log.Info("HTTP server started", "address", cfg.HTTPServer.Host+":"+cfg.HTTPServer.Port)
 
+	// Pseudo
 	// Graceful shutdown
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
@@ -87,7 +129,10 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		log.Error("HTTP server error", slogx.Err(err))
 	}
 
-	if err = httpServer.Shutdown(context.Background()); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err = httpServer.Shutdown(ctx); err != nil {
 		log.Error("HTTP server shutdown error", slogx.Err(err))
 	}
 

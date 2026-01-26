@@ -48,7 +48,7 @@ services:
     volumes:
       - ./config:/config
       - ./migrations:/migrations
-      - ./.env:/.env
+      - ./.env:/app/.env
     command: ["--migrations-path=/migrations"]
     networks:
       - psa-network
@@ -66,7 +66,7 @@ services:
       CONFIG_PATH: ${CONFIG_PATH}
     volumes:
       - ./config:/config
-      - ./.env:/.env
+      - ./.env:/app/.env
     networks:
       - psa-network
     restart: no

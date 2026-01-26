@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -45,13 +46,15 @@ func main() {
 		log.Fatalf("cannot hash password: %v", err)
 	}
 
+	hashedPasswordB64 := base64.StdEncoding.EncodeToString(hashedPassword)
+
 	log.Printf("Attempting to create admin: %s\n", email)
 
 	_, err = pool.Exec(ctx, `
 		INSERT INTO users (email, hashed_password, is_admin)
 		VALUES ($1, $2, true)
 		ON CONFLICT (email) DO NOTHING;
-	`, email, string(hashedPassword))
+	`, email, hashedPasswordB64)
 	if err != nil {
 		log.Fatalf("failed to insert admin: %v", err)
 	}

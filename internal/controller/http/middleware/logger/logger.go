@@ -40,7 +40,7 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
-func New(log *slog.Logger) func(http.Handler) http.Handler {
+func NewLoggerMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requestID := uuid.New().String()

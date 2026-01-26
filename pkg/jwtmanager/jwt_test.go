@@ -377,3 +377,28 @@ func TestHashToken_EdgeCases(t *testing.T) {
 		require.Equal(t, expected, hashed)
 	})
 }
+
+func TestJWTManager_ParseToken_InvalidToken_PanicSafety(t *testing.T) {
+	manager := setupManager("secret", time.Minute, time.Hour)
+
+	invalidTokens := []string{
+		"invalid.token.here",
+		"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+		"",
+		"Bearer invalid",
+		"invalid",
+	}
+
+	for _, token := range invalidTokens {
+		t.Run("invalid_token_"+token, func(t *testing.T) {
+			claims, err := manager.ParseToken(token)
+
+			require.Error(t, err)
+			require.Nil(t, claims)
+
+			require.NotPanics(t, func() {
+				_, _ = manager.ParseToken(token)
+			})
+		})
+	}
+}
