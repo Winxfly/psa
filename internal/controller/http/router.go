@@ -53,7 +53,7 @@ func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenV
 	// health check
 	root.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		w.Write([]byte("ok"))
 	})
 	return mw.Logger()(root)
 }

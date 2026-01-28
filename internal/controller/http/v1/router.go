@@ -39,8 +39,8 @@ func (r *Router) RegisterPublicRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /professions", handler.Handle(r.professionHandler.ListProfessions))
 	mux.HandleFunc("GET /professions/{id}/latest", handler.Handle(r.professionHandler.LastProfessionDetails))
 
-	// Ping pong
-	mux.HandleFunc("GET /ping", r.ping)
+	// Health check
+	mux.HandleFunc("GET /health", r.health)
 }
 
 func (r *Router) RegisterAdminRoutes(mux *http.ServeMux) {
@@ -50,7 +50,7 @@ func (r *Router) RegisterAdminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /professions/{id}", handler.Handle(r.professionAdminHandler.Change))
 }
 
-func (r *Router) ping(w http.ResponseWriter, req *http.Request) {
+func (r *Router) health(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("pong"))
+	w.Write([]byte("ok"))
 }
