@@ -6,6 +6,13 @@ type ProfessionResponse struct {
 	VacancyQuery string `json:"vacancy_query"`
 }
 
+type ProfessionAdminResponse struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	VacancyQuery string `json:"vacancy_query"`
+	IsActive     bool   `json:"is_active"`
+}
+
 type ProfessionDetailResponse struct {
 	ProfessionID    string          `json:"profession_id"`
 	ProfessionName  string          `json:"profession_name"`

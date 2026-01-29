@@ -56,9 +56,11 @@ func (h *ProfessionAdminHandler) Create(w http.ResponseWriter, r *http.Request) 
 
 	log.Info("Profession created", "id", id, "name", profession.Name)
 
-	handler.RespondJSON(w, http.StatusCreated, map[string]interface{}{
-		"id":   id,
-		"name": profession.Name,
+	handler.RespondJSON(w, http.StatusCreated, response.ProfessionAdminResponse{
+		ID:           id.String(),
+		Name:         profession.Name,
+		VacancyQuery: profession.VacancyQuery,
+		IsActive:     profession.IsActive,
 	})
 
 	return nil
@@ -92,10 +94,11 @@ func (h *ProfessionAdminHandler) Change(w http.ResponseWriter, r *http.Request) 
 		return handler.StatusInternalServerError("Failed to change profession")
 	}
 
-	handler.RespondJSON(w, http.StatusOK, response.ProfessionResponse{
+	handler.RespondJSON(w, http.StatusOK, response.ProfessionAdminResponse{
 		ID:           profession.ID.String(),
 		Name:         profession.Name,
 		VacancyQuery: profession.VacancyQuery,
+		IsActive:     profession.IsActive,
 	})
 
 	return nil
@@ -112,12 +115,13 @@ func (h *ProfessionAdminHandler) ListAllProfessions(w http.ResponseWriter, r *ht
 		return handler.StatusInternalServerError("Failed to get all professions")
 	}
 
-	resp := make([]response.ProfessionResponse, len(professions))
+	resp := make([]response.ProfessionAdminResponse, len(professions))
 	for i, p := range professions {
-		resp[i] = response.ProfessionResponse{
+		resp[i] = response.ProfessionAdminResponse{
 			ID:           p.ID.String(),
 			Name:         p.Name,
 			VacancyQuery: p.VacancyQuery,
+			IsActive:     p.IsActive,
 		}
 	}
 

@@ -276,7 +276,8 @@ Response 200 OK:
   {
     "id": "6e8b30bd-8ea9-4906-89f9-00dd1c1e6653",
     "name": "Go Developer",
-    "vacancy_query": "go developer OR golang"
+    "vacancy_query": "go developer OR golang",
+    "is_active": true
   }
 ]
 ```
@@ -319,7 +320,9 @@ Response 201 Created:
 ```json
 {
   "id": "e337f9e7-c0b6-4089-8b66-19ad3ef58ad0",
-  "name": "C# Developer"
+  "name": "C# Developer",
+  "vacancy_query": "C#",
+  "is_active": true
 }
 ```
 
@@ -353,6 +356,7 @@ Response 200 OK:
 {
   "id": "e337f9e7-c0b6-4089-8b66-19ad3ef58ad0",
   "name": "C# Developer",
-  "vacancy_query": "C#"
+  "vacancy_query": "C#",
+  "is_active": true
 }
 ```
