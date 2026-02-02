@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"psa/internal/config"
 	"psa/internal/entity"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -20,6 +21,10 @@ import (
 const (
 	perPage = 100
 	baseURL = "https://api.hh.ru/vacancies"
+)
+
+var (
+	hasLetterOrDigit = regexp.MustCompile(`[\p{L}\p{N}]`)
 )
 
 type TokenProvider interface {
@@ -272,6 +277,9 @@ func (c *Client) fetchDataVacancy(ctx context.Context, id string) (entity.Vacanc
 
 	var result entity.VacancyData
 	for _, item := range data.KeySkills {
+		if !hasLetterOrDigit.MatchString(item.Name) {
+			continue
+		}
 		result.Skills = append(result.Skills, strings.ToLower(item.Name))
 	}
 	result.Description = data.Description
