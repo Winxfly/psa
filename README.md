@@ -67,15 +67,6 @@ PSA автоматически собирает вакансии по задан
 
 Применение миграций БД: `make migrate-up`
 
-В БД заранее не заданы профессии, поэтому можно подключиться к БД и добавить профессии, например:
-
-`docker compose exec postgres psql -U psalocal -d psalocal`
-
-`insert into profession (name, vacancy_query, is_active) values
-('Go Developer', 'go developer OR golang', true),
-('System analyst', '!\"Системный аналитик\" OR !\"system analyst\" NOT (\"Бизнес аналитик\" OR \"business analyst\" OR business OR бизнес)', true);
-`
-
 Запуск приложения: `make up`
 
 ## API
