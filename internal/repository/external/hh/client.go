@@ -305,7 +305,7 @@ func (c *Client) fetchDataVacancies(ctx context.Context, ids []string) ([]entity
 func (c *Client) DataProfession(ctx context.Context, query, area string) ([]entity.VacancyData, error) {
 	const op = "repository.hh.vacancy.client.DataProfession"
 
-	ctx, cancel := context.WithTimeout(ctx, 8*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 12*time.Minute)
 	defer cancel()
 
 	if query == "" {

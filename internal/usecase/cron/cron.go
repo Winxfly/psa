@@ -85,7 +85,7 @@ func (c *Cron) monthlyScrapingJobs() {
 	c.log.Info("Starting monthly scraping jobs")
 
 	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 120*time.Minute)
 	defer cancel()
 
 	if err := c.scraper.ProcessActiveProfessions(ctx, true); err != nil {
@@ -99,7 +99,7 @@ func (c *Cron) dailyScrapingJobs() {
 	c.log.Info("Starting daily scraping jobs")
 
 	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 120*time.Minute)
 	defer cancel()
 
 	if err := c.scraper.ProcessActiveProfessions(ctx, false); err != nil {
