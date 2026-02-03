@@ -55,13 +55,28 @@ PSA автоматически собирает вакансии по задан
 
 ### Запуск
 
-Для запуска необходимы: docker и docker compose
+Для запуска необходимы: docker и docker compose, make
 
-Зарегистрировать приложение в [HeadHunter API](https://dev.hh.ru/)
+Зарегистрировать приложение в [HeadHunter API](https://dev.hh.ru/) (необязательно для запуска, но сбор данных будет недоступен)
 
-Клонировать репозиторий
+Клонировать репозиторий:
 
-Создать файл .env по примеру .env.example
+```bash
+git clone https://github.com/Winxfly/psa.git
+```
+
+Перейти в директорию проекта:
+
+```bash
+cd psa
+```
+
+Создать файл .env по примеру .env.example:
+
+```bash
+cp .env.example .env
+```
+> **Для запуска и проверки работоспособности этого достаточно. Если не указать ключи для hh API, то сбор данных будет недоступен.**
 
 Запуск PostgreSQL: `make postgres-up`
 
@@ -77,6 +92,12 @@ GET requests are shown without `-X GET` for brevity.
 ### Roles
 
 - **admin** — access to administrative API
+
+#### Создать админа (по необходимости)
+
+```bash
+make create-admin ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=supersecret
+```
 
 #### Health check
 
