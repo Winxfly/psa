@@ -2,12 +2,12 @@ package public
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"psa/internal/controller/http/v1/handler"
 	"psa/internal/controller/http/v1/request"
 	"psa/internal/controller/http/v1/response"
 	"psa/internal/entity"
+	"psa/pkg/logger/loggerctx"
 )
 
 type Authenticator interface {
@@ -17,18 +17,18 @@ type Authenticator interface {
 }
 
 type AuthHandler struct {
-	log           *slog.Logger
 	authenticator Authenticator
 }
 
-func NewAuthHandler(log *slog.Logger, authenticator Authenticator) *AuthHandler {
+func NewAuthHandler(authenticator Authenticator) *AuthHandler {
 	return &AuthHandler{
-		log:           log,
 		authenticator: authenticator,
 	}
 }
 
 func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) error {
+	log := loggerctx.FromContext(r.Context())
+
 	if r.Method != http.MethodPost {
 		return handler.StatusMethodNotAllowed("Method not allowed")
 	}
@@ -40,8 +40,11 @@ func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) error {
 
 	tokenPair, err := h.authenticator.Signin(r.Context(), req.Email, req.Password)
 	if err != nil {
+		log.Warn("auth.signin.failed", "reason", "invalid_credentials")
 		return handler.StatusUnauthorized("Invalid credentials")
 	}
+
+	log.Info("auth.signin.success")
 
 	resp := response.TokenPairResponse{
 		AccessToken:  tokenPair.AccessToken,
@@ -49,10 +52,13 @@ func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	handler.RespondJSON(w, http.StatusOK, resp)
+
 	return nil
 }
 
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) error {
+	log := loggerctx.FromContext(r.Context())
+
 	if r.Method != http.MethodPost {
 		return handler.StatusMethodNotAllowed("Method not allowed")
 	}
@@ -64,6 +70,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) error {
 
 	tokenPair, err := h.authenticator.RefreshTokens(r.Context(), req.RefreshToken)
 	if err != nil {
+		log.Warn("auth.token.refresh.failed", "reason", "invalid_token")
 		return handler.StatusUnauthorized("Invalid refresh token")
 	}
 
@@ -77,6 +84,8 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) error {
+	log := loggerctx.FromContext(r.Context())
+
 	if r.Method != http.MethodPost {
 		return handler.StatusMethodNotAllowed("Method not allowed")
 	}
@@ -87,8 +96,10 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if err := h.authenticator.Logout(r.Context(), req.RefreshToken); err != nil {
-		// TODO: не возвращаем ошибку тк должен завершаться успешно? переделать
+		log.Warn("auth.logout.failed", "error", err)
 	}
+
+	log.Info("auth.logout.success")
 
 	handler.RespondJSON(w, http.StatusOK, response.LogoutResponse{
 		Message: "Successfully logged out",

@@ -3,13 +3,13 @@ package admin
 import (
 	"context"
 	"github.com/google/uuid"
-	"log/slog"
 	"net/http"
 	"psa/internal/controller/http/v1/handler"
 	"psa/internal/controller/http/v1/request"
 	"psa/internal/controller/http/v1/response"
 	"psa/internal/entity"
 	"psa/pkg/logger/loggerctx"
+	"psa/pkg/logger/slogx"
 )
 
 type ProfessionAdminAccesser interface {
@@ -19,13 +19,11 @@ type ProfessionAdminAccesser interface {
 }
 
 type ProfessionAdminHandler struct {
-	log        *slog.Logger
 	profession ProfessionAdminAccesser
 }
 
-func NewProfessionAdminHandler(log *slog.Logger, profession ProfessionAdminAccesser) *ProfessionAdminHandler {
+func NewProfessionAdminHandler(profession ProfessionAdminAccesser) *ProfessionAdminHandler {
 	return &ProfessionAdminHandler{
-		log:        log,
 		profession: profession,
 	}
 }
@@ -36,7 +34,7 @@ func (h *ProfessionAdminHandler) Create(w http.ResponseWriter, r *http.Request) 
 
 	var req request.CreateProfessionRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
-		log.Warn("Failed to decode create profession request", "error", err)
+		log.Warn("profession.admin.create.decode_failed", slogx.Err(err))
 
 		return err
 	}
@@ -49,12 +47,12 @@ func (h *ProfessionAdminHandler) Create(w http.ResponseWriter, r *http.Request) 
 
 	id, err := h.profession.CreateProfession(ctx, profession)
 	if err != nil {
-		log.Error("Failed to create profession", "name", profession.Name, "error", err)
+		log.Warn("profession.admin.create.conflict", "name", profession.Name)
 
 		return handler.StatusConflict("Profession already exists")
 	}
 
-	log.Info("Profession created", "id", id, "name", profession.Name)
+	log.Info("profession.admin.create.success", "profession_id", id, "name", profession.Name)
 
 	handler.RespondJSON(w, http.StatusCreated, response.ProfessionAdminResponse{
 		ID:           id.String(),
@@ -72,13 +70,13 @@ func (h *ProfessionAdminHandler) Change(w http.ResponseWriter, r *http.Request) 
 
 	professionID, err := handler.PathUUID(r, "id")
 	if err != nil {
-		log.Error("Failed to parse id", "error", err)
+		log.Warn("profession.admin.change.invalid_id", slogx.Err(err))
 		return err
 	}
 
 	var req request.UpdateProfessionRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
-		log.Warn("Failed to decode update profession request", "error", err)
+		log.Warn("profession.admin.change.decode_failed", slogx.Err(err))
 		return err
 	}
 
@@ -90,9 +88,11 @@ func (h *ProfessionAdminHandler) Change(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := h.profession.ChangeProfession(ctx, profession); err != nil {
-		log.Error("Failed to update profession", "id", professionID, "error", err)
+		log.Error("profession.admin.change.failed", "profession_id", professionID, slogx.Err(err))
 		return handler.StatusInternalServerError("Failed to change profession")
 	}
+
+	log.Info("profession.admin.change.success", "profession_id", professionID)
 
 	handler.RespondJSON(w, http.StatusOK, response.ProfessionAdminResponse{
 		ID:           profession.ID.String(),
@@ -110,7 +110,7 @@ func (h *ProfessionAdminHandler) ListAllProfessions(w http.ResponseWriter, r *ht
 
 	professions, err := h.profession.AllProfessions(ctx)
 	if err != nil {
-		log.Error("Failed to get all professions", "error", err)
+		log.Error("profession.admin.list.failed", slogx.Err(err))
 
 		return handler.StatusInternalServerError("Failed to get all professions")
 	}
@@ -125,7 +125,8 @@ func (h *ProfessionAdminHandler) ListAllProfessions(w http.ResponseWriter, r *ht
 		}
 	}
 
-	handler.RespondJSON(w, http.StatusOK, resp)
+	log.Debug("profession.admin.list.success", "count", len(professions))
 
+	handler.RespondJSON(w, http.StatusOK, resp)
 	return nil
 }

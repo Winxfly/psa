@@ -3,7 +3,6 @@ package public
 import (
 	"context"
 	"github.com/google/uuid"
-	"log/slog"
 	"net/http"
 	"psa/internal/controller/http/v1/handler"
 	"psa/internal/controller/http/v1/response"
@@ -12,31 +11,28 @@ import (
 	"psa/pkg/logger/slogx"
 )
 
-// TODO: поправить dto (типы данных), подумать надо логированием
-
 type ProfessionProvider interface {
 	ActiveProfessions(ctx context.Context) ([]entity.ActiveProfession, error)
 	ProfessionSkills(ctx context.Context, professionID uuid.UUID) (*entity.ProfessionDetail, error)
 }
 
 type ProfessionHandler struct {
-	log      *slog.Logger
 	provider ProfessionProvider
 }
 
-func NewProfessionHandler(log *slog.Logger, provider ProfessionProvider) *ProfessionHandler {
+func NewProfessionHandler(provider ProfessionProvider) *ProfessionHandler {
 	return &ProfessionHandler{
-		log:      log,
 		provider: provider,
 	}
 }
 
 func (h *ProfessionHandler) ListProfessions(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
+	log := loggerctx.FromContext(ctx)
 
 	professions, err := h.provider.ActiveProfessions(ctx)
 	if err != nil {
-		loggerctx.FromContext(ctx).Error("Failed to get professions", slogx.Err(err))
+		log.Error("profession.list.failed", slogx.Err(err))
 		return handler.StatusInternalServerError("Failed to get professions")
 	}
 
@@ -49,22 +45,25 @@ func (h *ProfessionHandler) ListProfessions(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	log.Debug("profession.list.success", "count", len(professions))
+
 	handler.RespondJSON(w, http.StatusOK, resp)
 	return nil
 }
 
 func (h *ProfessionHandler) LastProfessionDetails(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
+	log := loggerctx.FromContext(ctx)
 
 	professionID, err := handler.PathUUID(r, "id")
 	if err != nil {
-		http.Error(w, "Invalid profession ID", http.StatusBadRequest)
+		log.Warn("profession.details.invalid_id", slogx.Err(err))
 		return handler.StatusBadRequest("Invalid profession ID")
 	}
 
 	profession, err := h.provider.ProfessionSkills(ctx, professionID)
 	if err != nil {
-		loggerctx.FromContext(ctx).Error("Profession not found", slogx.Err(err))
+		log.Warn("profession.details.not_found", "profession_id", professionID)
 		return handler.StatusNotFound("Profession not found")
 	}
 
@@ -92,6 +91,8 @@ func (h *ProfessionHandler) LastProfessionDetails(w http.ResponseWriter, r *http
 			Count: skill.Count,
 		}
 	}
+
+	log.Debug("profession.details.success", "profession_id", professionID)
 
 	handler.RespondJSON(w, http.StatusOK, resp)
 	return nil

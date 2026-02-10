@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"log/slog"
 	"net/http"
 	"psa/internal/controller/http/v1/handler"
 	"psa/internal/controller/http/v1/handler/admin"
@@ -9,20 +8,17 @@ import (
 )
 
 type Router struct {
-	log                    *slog.Logger
 	authHandler            *public.AuthHandler
 	professionAdminHandler *admin.ProfessionAdminHandler
 	professionHandler      *public.ProfessionHandler
 }
 
 func New(
-	log *slog.Logger,
 	authHandler *public.AuthHandler,
 	professionAdminHandler *admin.ProfessionAdminHandler,
 	professionHandler *public.ProfessionHandler,
 ) *Router {
 	return &Router{
-		log:                    log,
 		authHandler:            authHandler,
 		professionAdminHandler: professionAdminHandler,
 		professionHandler:      professionHandler,

@@ -88,9 +88,9 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	)
 
 	// HTTP handlers v1
-	authPublicHandler := public.NewAuthHandler(log, authUC)
-	professionPublicHandler := public.NewProfessionHandler(log, professionProvider)
-	professionAdminHandler := admin.NewProfessionAdminHandler(log, professionProvider)
+	authPublicHandler := public.NewAuthHandler(authUC)
+	professionPublicHandler := public.NewProfessionHandler(professionProvider)
+	professionAdminHandler := admin.NewProfessionAdminHandler(professionProvider)
 
 	httpHandlers := controllerhttp.V1Handlers{
 		AuthPublic:       authPublicHandler,

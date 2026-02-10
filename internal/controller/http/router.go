@@ -22,7 +22,7 @@ func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenV
 	mw := middleware.NewManager(log, tokenValidator)
 
 	// v1 router
-	v1Router := v1.New(log, handlers.AuthPublic, handlers.ProfessionAdmin, handlers.ProfessionPublic)
+	v1Router := v1.New(handlers.AuthPublic, handlers.ProfessionAdmin, handlers.ProfessionPublic)
 
 	// mux
 	root := http.NewServeMux()

@@ -19,7 +19,7 @@ func WithLogger(ctx context.Context, log *slog.Logger) context.Context {
 func FromContext(ctx context.Context) *slog.Logger {
 	log, ok := ctx.Value(loggerKey).(*slog.Logger)
 	if !ok {
-		return slog.Default()
+		return slog.Default().With("logger", "missing_from_context")
 	}
 	return log
 }

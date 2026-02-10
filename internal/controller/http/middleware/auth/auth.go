@@ -37,7 +37,7 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			log.Warn("Authorization header missing")
+			log.Info("auth.header.missing")
 			m.respondWithError(w, http.StatusUnauthorized, "Authorization header required")
 
 			return
@@ -45,7 +45,7 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			log.Warn("Invalid authorization header format")
+			log.Info("invalid.header.invalid_format")
 			m.respondWithError(w, http.StatusUnauthorized, "Authorization header format must be Bearer {token}")
 
 			return
@@ -54,13 +54,13 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 		token := parts[1]
 		claims, err := m.tokenValidator.ValidateToken(ctx, token)
 		if err != nil {
-			log.Warn("Token validation failed", "error", err)
+			log.Info("auth.token.invalid")
 			m.respondWithError(w, http.StatusUnauthorized, "Invalid token")
 
 			return
 		}
 
-		log.Debug("Token validated", "user_id", claims.UserID, "role", claims.Role)
+		log.Debug("auth.token.valid", "user_id", claims.UserID, "role", claims.Role)
 
 		ctx = context.WithValue(ctx, userContextKey, claims)
 
@@ -77,14 +77,14 @@ func (m *Middleware) RequireRole(requiredRole string) func(http.Handler) http.Ha
 
 			claims, ok := r.Context().Value(userContextKey).(*entity.TokenClaims)
 			if !ok {
-				log.Warn("Claims no found in context")
+				log.Error("auth.context.claims_missing")
 				m.respondWithError(w, http.StatusUnauthorized, "Authentication required")
 
 				return
 			}
 
 			if claims.Role != requiredRole {
-				log.Warn("Insufficient permissions", "user_role", claims.Role, "required_role", requiredRole)
+				log.Info("auth.permission.denied", "user_role", claims.Role, "required_role", requiredRole)
 				m.respondWithError(w, http.StatusForbidden, "Insufficient permissions")
 
 				return
