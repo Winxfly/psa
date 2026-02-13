@@ -3,11 +3,14 @@ package scraper
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"log/slog"
-	"psa/internal/entity"
 	"sort"
 	"time"
+
+	"github.com/google/uuid"
+
+	"psa/internal/entity"
+	"psa/pkg/logger/loggerctx"
+	"psa/pkg/logger/slogx"
 )
 
 const (
@@ -45,7 +48,6 @@ type CacheProvider interface {
 }
 
 type Scraper struct {
-	log                *slog.Logger
 	professionProvider ProfessionProvider
 	sessionProvider    SessionProvider
 	skillsProvider     SkillsProvider
@@ -56,7 +58,6 @@ type Scraper struct {
 }
 
 func New(
-	log *slog.Logger,
 	professionProvider ProfessionProvider,
 	sessionCreator SessionProvider,
 	skillSaver SkillsProvider,
@@ -66,7 +67,6 @@ func New(
 	cache CacheProvider,
 ) *Scraper {
 	return &Scraper{
-		log:                log,
 		professionProvider: professionProvider,
 		sessionProvider:    sessionCreator,
 		skillsProvider:     skillSaver,
@@ -79,71 +79,96 @@ func New(
 
 func (s *Scraper) ProcessActiveProfessions(ctx context.Context, saveToDB bool) error {
 	const op = "usecase.scraper.ProcessActiveProfessions"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
-	s.log.Info("Starting active professions processing", "saveToDB", saveToDB)
+	log.Info("start", "save_to_db", saveToDB)
 
 	professions, err := s.professionProvider.GetActiveProfessions(ctx)
 	if err != nil {
+		log.Error("get_active_professions_failed", slogx.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
+
+	log.Debug("active_professions.loaded", "count", len(professions))
 
 	var sessionID uuid.UUID
 	if saveToDB {
 		sessionID, err = s.sessionProvider.CreateScrapingSession(ctx)
 		if err != nil {
+			log.Error("session.create_failed", slogx.Err(err))
 			return fmt.Errorf("%s: %w", op, err)
 		}
-
-		s.log.Info("Created DB session", "session_id", sessionID)
+		log.Info("session.created", "session_id", sessionID)
 	} else {
 		sessionID = uuid.New()
-		s.log.Info("Using temporary session", "session_id", sessionID)
+		log.Info("session.temporary", "session_id", sessionID)
 	}
 
 	for _, profession := range professions {
 		if err := s.processProfession(ctx, profession, sessionID, saveToDB); err != nil {
-			s.log.Error("Failed to process profession", "profession", profession.Name, "error", err)
+			log.Error("profession.process_failed", "profession_id", profession.ID,
+				"profession_name", profession.Name, slogx.Err(err))
 			continue
 		}
 	}
 
-	s.log.Info("Completed processing all active professions")
+	log.Info("completed")
 	return nil
 }
 
 func (s *Scraper) processProfession(ctx context.Context, profession entity.Profession, sessionID uuid.UUID, saveToDB bool) error {
-	s.log.Info("Processing profession", "profession", profession.Name, "query", profession.VacancyQuery)
+	const op = "usecase.scraper.processProfession"
+	log := loggerctx.FromContext(ctx).With(
+		"op", op,
+		"profession_id", profession.ID,
+		"profession_name", profession.Name,
+		"session_id", sessionID,
+	)
+
+	log.Debug("start")
+
+	start := time.Now()
+	defer func() {
+		log.Debug("finished", "duration", time.Since(start))
+	}()
 
 	vacancyData, err := s.vacancyProvider.DataProfession(ctx, profession.VacancyQuery, area)
 	if err != nil {
-		s.log.Error("Failed to get profession data", "profession", profession.Name, "error", err)
-		return fmt.Errorf("fetch vacancy data: %w", err)
+		log.Error("vacancy.fetch_failed", slogx.Err(err))
+		return fmt.Errorf("%s: fetch vacancy data: %w", op, err)
 	}
 
-	s.log.Info("Successfully fetched vacancy data", "profession", profession.Name, "count", len(vacancyData))
+	log.Debug("vacancy.fetched", "vacancy_count", len(vacancyData))
+
+	formalSkills := s.aggregateFormalSkills(vacancyData)
+	extractedSkills := s.extractSkillsFromText(ctx, vacancyData, formalSkills)
 
 	if saveToDB {
 		if err := s.statProvider.SaveStat(ctx, sessionID, profession.ID, len(vacancyData)); err != nil {
-			s.log.Error("Failed to save stat", "profession", profession.Name, "error", err)
+			log.Warn("stat.save_failed", slogx.Err(err))
+		} else {
+			log.Debug("stat.saved")
 		}
 
-		formalSkills := s.aggregateFormalSkills(vacancyData)
 		if err := s.skillsProvider.SaveFormalSkills(ctx, sessionID, profession.ID, formalSkills); err != nil {
-			s.log.Error("Failed to save formal skills", "profession", profession.Name, "error", err)
+			log.Warn("formal_skills.save_failed", slogx.Err(err))
 		} else {
-			s.log.Info("Saved formal skills", "profession", profession.Name, "skill_count", len(formalSkills))
+			log.Debug("formal_skills.saved", "skill_count", len(formalSkills))
 		}
 
-		extractedSkills := s.extractSkillsFromText(vacancyData, formalSkills)
 		if err := s.skillsProvider.SaveExtractedSkills(ctx, sessionID, profession.ID, extractedSkills); err != nil {
-			s.log.Error("Failed to save extracted skills", "profession", profession.Name, "error", err)
+			log.Warn("extracted_skills.save_failed", slogx.Err(err))
 		} else {
-			s.log.Info("Saved extracted skills", "profession", profession.Name, "skill_count", len(extractedSkills))
+			log.Debug("extracted_skills.saved", "skill_count", len(extractedSkills))
 		}
 	}
 
-	if err := s.saveToCache(ctx, profession, vacancyData); err != nil {
-		s.log.Error("Failed to save to cache", "profession", profession.Name, "error", err)
+	if s.cache != nil {
+		if err := s.saveToCache(ctx, profession, vacancyData, formalSkills, extractedSkills); err != nil {
+			log.Warn("cache.save_failed", slogx.Err(err))
+		} else {
+			log.Debug("cache.saved")
+		}
 	}
 
 	return nil
@@ -159,12 +184,14 @@ func (s *Scraper) aggregateFormalSkills(data []entity.VacancyData) map[string]in
 	return skills
 }
 
-func (s *Scraper) extractSkillsFromText(data []entity.VacancyData, whiteList map[string]int) map[string]int {
+func (s *Scraper) extractSkillsFromText(ctx context.Context, data []entity.VacancyData, whiteList map[string]int) map[string]int {
+	log := loggerctx.FromContext(ctx)
+
 	result := make(map[string]int)
 	for _, d := range data {
 		extracted, err := s.extractor.ExtractSkills(d.Description, whiteList, ngram)
 		if err != nil {
-			s.log.Error("Failed to extract skills from text", "error", err)
+			log.Warn("extract_failed", slogx.Err(err), "description_preview", truncate(d.Description, 100))
 			continue
 		}
 
@@ -191,13 +218,16 @@ func (s *Scraper) transformSkillsSort(skills map[string]int) []entity.SkillRespo
 	return result
 }
 
-func (s *Scraper) saveToCache(ctx context.Context, profession entity.Profession, vacancyData []entity.VacancyData) error {
+func (s *Scraper) saveToCache(
+	ctx context.Context,
+	profession entity.Profession,
+	vacancyData []entity.VacancyData,
+	formalSkills map[string]int,
+	extractedSkills map[string]int,
+) error {
 	if s.cache == nil {
 		return nil
 	}
-
-	formalSkills := s.aggregateFormalSkills(vacancyData)
-	extractedSkills := s.extractSkillsFromText(vacancyData, formalSkills)
 
 	cacheData := &entity.ProfessionDetail{
 		ProfessionID:    profession.ID,
@@ -209,4 +239,11 @@ func (s *Scraper) saveToCache(ctx context.Context, profession entity.Profession,
 	}
 
 	return s.cache.SaveProfessionData(ctx, cacheData)
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

@@ -5,11 +5,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"log/slog"
+
 	"psa/internal/entity"
-	"time"
+	"psa/pkg/logger/loggerctx"
+	"psa/pkg/logger/slogx"
 )
 
 var (
@@ -38,7 +41,6 @@ type JWTProvider interface {
 }
 
 type Auth struct {
-	log                  *slog.Logger
 	userProvider         UserProvider
 	refreshTokenProvider RefreshTokenProvider
 	jwtProvider          JWTProvider
@@ -47,7 +49,6 @@ type Auth struct {
 }
 
 func New(
-	log *slog.Logger,
 	userProvider UserProvider,
 	refreshTokenProvider RefreshTokenProvider,
 	jwtProvider JWTProvider,
@@ -55,7 +56,6 @@ func New(
 	refreshTokenTTL time.Duration,
 ) *Auth {
 	return &Auth{
-		log:                  log,
 		userProvider:         userProvider,
 		refreshTokenProvider: refreshTokenProvider,
 		jwtProvider:          jwtProvider,
@@ -66,19 +66,20 @@ func New(
 
 func (a *Auth) Signin(ctx context.Context, email, password string) (*entity.TokenPair, error) {
 	const op = "usecase.auth.Signin"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
 	user, err := a.userProvider.GetUserByEmail(ctx, email)
 	if err != nil {
-		a.log.Error("Failed to get user by email", "email", email, "error", err)
-		return nil, fmt.Errorf("%s: %w", op, err)
+		log.Error("get_user_failed", slogx.Err(err))
+		return nil, fmt.Errorf("%s: get user: %w", op, err)
 	}
 	if user == nil {
-		a.log.Warn("User not found", "email", email)
+		log.Warn("user_not_found")
 		return nil, ErrInvalidCredentials
 	}
 
 	if err := comparePassword(password, user.HashedPassword); err != nil {
-		a.log.Warn("Invalid password", "email", email, "error", err)
+		log.Warn("invalid_password", "user_id", user.ID, slogx.Err(err))
 		return nil, ErrInvalidCredentials
 	}
 
@@ -89,14 +90,14 @@ func (a *Auth) Signin(ctx context.Context, email, password string) (*entity.Toke
 
 	accessToken, err := a.jwtProvider.GenerateAccessToken(ctx, user.ID, role)
 	if err != nil {
-		a.log.Error("Failed to generate access token", "user_id", user.ID, "error", err)
-		return nil, fmt.Errorf("%s: %w", op, err)
+		log.Error("generate_access_token_failed", "user_id", user.ID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: generate access token: %w", op, err)
 	}
 
 	refreshToken, err := a.jwtProvider.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
-		a.log.Error("Failed to generate refresh token", "user_id", user.ID, "error", err)
-		return nil, fmt.Errorf("%s: %w", op, err)
+		log.Error("generate_refresh_token_failed", "user_id", user.ID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: generate refresh token: %w", op, err)
 	}
 
 	hashedRefreshToken := a.jwtProvider.HashToken(refreshToken)
@@ -107,11 +108,11 @@ func (a *Auth) Signin(ctx context.Context, email, password string) (*entity.Toke
 	}
 
 	if err := a.refreshTokenProvider.CreateRefreshToken(ctx, preparedRefreshToken); err != nil {
-		a.log.Error("Failed to create refresh token", "user_id", user.ID, "error", err)
-		return nil, fmt.Errorf("%s: %w", op, err)
+		log.Error("create_refresh_token_failed", "user_id", user.ID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: create refresh token: %w", op, err)
 	}
 
-	a.log.Info("User signed in successfully", "user_id", user.ID, "email", email)
+	log.Info("signin_success", "user_id", user.ID, "role", role)
 
 	return &entity.TokenPair{
 		AccessToken:  accessToken,
@@ -121,35 +122,36 @@ func (a *Auth) Signin(ctx context.Context, email, password string) (*entity.Toke
 
 func (a *Auth) RefreshTokens(ctx context.Context, refreshToken string) (*entity.TokenPair, error) {
 	const op = "usecase.auth.RefreshTokens"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
 	claims, err := a.jwtProvider.ParseToken(ctx, refreshToken)
 	if err != nil {
-		a.log.Warn("Failed to parse refresh token", "error", err)
+		log.Warn("parse_failed", slogx.Err(err))
 		return nil, ErrInvalidToken
 	}
 	if claims.TokenType != entity.TokenTypeRefresh {
-		a.log.Warn("Wrong token type for refresh", "expected", entity.TokenTypeRefresh, "got", claims.TokenType)
+		log.Warn("wrong_token_type", "expected", entity.TokenTypeRefresh, "got", claims.TokenType)
 		return nil, ErrInvalidToken
 	}
 
 	user, err := a.userProvider.GetUserByID(ctx, claims.UserID)
 	if err != nil {
-		a.log.Error("Failed to get user by ID", "user_id", claims.UserID, "error", err)
-		return nil, fmt.Errorf("%s: %w", op, err)
+		log.Error("get_user_failed", "user_id", claims.UserID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: get user: %w", op, err)
 	}
 	if user == nil {
-		a.log.Warn("User not found for refresh", "user_id", claims.UserID)
+		log.Warn("user_not_found", "user_id", claims.UserID)
 		return nil, ErrUserNotFound
 	}
 
 	hashedToken := a.jwtProvider.HashToken(refreshToken)
 	storedToken, err := a.refreshTokenProvider.GetRefreshToken(ctx, user.ID, hashedToken)
 	if err != nil {
-		a.log.Error("Failed to get refresh token from storage", "user_id", user.ID, "error", err)
-		return nil, fmt.Errorf("%s: %w", op, err)
+		log.Error("get_stored_token_failed", "user_id", user.ID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: get stored token: %w", op, err)
 	}
 	if storedToken == nil {
-		a.log.Warn("Refresh token not found in storage", "user_id", user.ID)
+		log.Warn("token_not_found", "user_id", user.ID)
 		return nil, ErrInvalidToken
 	}
 
@@ -160,14 +162,14 @@ func (a *Auth) RefreshTokens(ctx context.Context, refreshToken string) (*entity.
 
 	newAccessToken, err := a.jwtProvider.GenerateAccessToken(ctx, user.ID, role)
 	if err != nil {
-		a.log.Error("Failed to generate new access token", "user_id", user.ID, "error", err)
-		return nil, fmt.Errorf("%s: %w", op, err)
+		log.Error("generate_access_token_failed", "user_id", user.ID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: generate access token: %w", op, err)
 	}
 
 	newRefreshToken, err := a.jwtProvider.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
-		a.log.Error("Failed to generate new refresh token", "user_id", user.ID, "error", err)
-		return nil, fmt.Errorf("%s: %w", op, err)
+		log.Error("generate_refresh_token_failed", "user_id", user.ID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: generate refresh token: %w", op, err)
 	}
 
 	newHashedToken := a.jwtProvider.HashToken(newRefreshToken)
@@ -178,15 +180,15 @@ func (a *Auth) RefreshTokens(ctx context.Context, refreshToken string) (*entity.
 	}
 
 	if err := a.refreshTokenProvider.CreateRefreshToken(ctx, preparedRefreshToken); err != nil {
-		a.log.Error("Failed to save refresh token", "user_id", user.ID, "error", err)
-		return nil, fmt.Errorf("%s: %w", op, err)
+		log.Error("create_refresh_token_failed", "user_id", user.ID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: create refresh token: %w", op, err)
 	}
 
 	if err := a.refreshTokenProvider.DeleteRefreshToken(ctx, user.ID, hashedToken); err != nil {
-		a.log.Error("Failed to delete old refresh token", "user_id", user.ID, "error", err)
+		log.Warn("delete_old_token_failed", "user_id", user.ID, slogx.Err(err))
 	}
 
-	a.log.Info("Tokens refreshed successfully", "user_id", user.ID)
+	log.Info("refresh_tokens_success", "user_id", user.ID)
 
 	return &entity.TokenPair{
 		AccessToken:  newAccessToken,
@@ -196,65 +198,69 @@ func (a *Auth) RefreshTokens(ctx context.Context, refreshToken string) (*entity.
 
 func (a *Auth) Logout(ctx context.Context, refreshToken string) error {
 	const op = "usecase.auth.Logout"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
 	claims, err := a.jwtProvider.ParseToken(ctx, refreshToken)
 	if err != nil {
-		a.log.Warn("Failed to parse token during logout", "error", err)
+		log.Warn("parse_failed", slogx.Err(err))
 		return ErrInvalidToken
 	}
 
 	if claims.TokenType != entity.TokenTypeRefresh {
-		a.log.Warn("Wrong token type for logout", "expected", entity.TokenTypeRefresh, "got", claims.TokenType)
+		log.Warn("wrong_token_type", "expected", entity.TokenTypeRefresh, "got", claims.TokenType)
 		return ErrInvalidToken
 	}
 
 	hashedToken := a.jwtProvider.HashToken(refreshToken)
 
 	if err := a.refreshTokenProvider.DeleteRefreshToken(ctx, claims.UserID, hashedToken); err != nil {
-		a.log.Error("Failed to delete old refresh token during logout", "user_id", claims.UserID, "error", err)
-		return fmt.Errorf("%s: %w", op, err)
+		log.Error("delete_token_failed", "user_id", claims.UserID, slogx.Err(err))
+		return fmt.Errorf("%s: delete token: %w", op, err)
 	}
 
-	a.log.Info("User logged out successfully", "user_id", claims.UserID)
+	log.Info("logout_success", "user_id", claims.UserID)
 
 	return nil
 }
 
 func (a *Auth) ValidateToken(ctx context.Context, token string) (*entity.TokenClaims, error) {
 	const op = "usecase.auth.ValidateToken"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
 	claims, err := a.jwtProvider.ParseToken(ctx, token)
 	if err != nil {
-		a.log.Warn("Failed to parse token during validation", "error", err)
+		log.Warn("parse_failed", slogx.Err(err))
 		return nil, ErrInvalidToken
 	}
 
 	if claims.TokenType != entity.TokenTypeAccess {
-		a.log.Warn("Wrong token type for validation", "expected", entity.TokenTypeAccess, "got", claims.TokenType)
+		log.Warn("wrong_token_type", "expected", entity.TokenTypeAccess, "got", claims.TokenType)
 		return nil, ErrInvalidToken
 	}
 
 	user, err := a.userProvider.GetUserByID(ctx, claims.UserID)
 	if err != nil {
-		a.log.Error("Failed to get user during token validation", "user_id", claims.UserID, "error", err)
-		return nil, fmt.Errorf("%s: %w", op, err)
+		log.Error("get_user_failed", "user_id", claims.UserID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: get user: %w", op, err)
 	}
 	if user == nil {
-		a.log.Warn("User not found for validation", "user_id", claims.UserID)
+		log.Warn("user_not_found", "user_id", claims.UserID)
 		return nil, ErrUserNotFound
 	}
 
-	a.log.Debug("Token validated successful", "user_id", claims.UserID)
+	log.Debug("validate_token_success", "user_id", claims.UserID, "role", claims.Role)
 
 	return claims, nil
 }
 
 func comparePassword(password string, comparedHashedPassword string) error {
+	const op = "usecase.auth.comparePassword"
+
 	hashedPassword, err := base64.StdEncoding.DecodeString(comparedHashedPassword)
 	if err == nil {
 		err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(password))
 		if err != nil {
-			return fmt.Errorf("invalid password: %w", err)
+			return fmt.Errorf("%s: invalid password: %w", op, err)
 		}
 
 		return nil
@@ -262,7 +268,7 @@ func comparePassword(password string, comparedHashedPassword string) error {
 
 	err = bcrypt.CompareHashAndPassword([]byte(comparedHashedPassword), []byte(password))
 	if err != nil {
-		return fmt.Errorf("invalid password: %w", err)
+		return fmt.Errorf("%s: invalid password: %w", op, err)
 	}
 
 	return nil

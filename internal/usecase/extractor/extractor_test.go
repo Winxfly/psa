@@ -1,8 +1,9 @@
 package extractor_test
 
 import (
-	"psa/internal/usecase/extractor"
 	"testing"
+
+	"psa/internal/usecase/extractor"
 )
 
 func TestExtractSkills(t *testing.T) {

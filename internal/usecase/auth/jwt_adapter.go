@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+
 	"github.com/google/uuid"
+
 	"psa/internal/entity"
 	"psa/pkg/jwtmanager"
 )

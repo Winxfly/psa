@@ -4,13 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"log/slog"
-	"psa/internal/entity"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+
+	"psa/internal/entity"
+	"psa/pkg/logger/loggerctx"
+	"psa/pkg/logger/slogx"
 )
+
+const cacheSaveTimeout = 10 * time.Second
 
 type ProfessionProvider interface {
 	GetAllProfessions(ctx context.Context) ([]entity.Profession, error)
@@ -40,7 +46,6 @@ type CacheProvider interface {
 }
 
 type Provider struct {
-	log                *slog.Logger
 	professionProvider ProfessionProvider
 	sessionProvider    SessionProvider
 	statProvider       StatProvider
@@ -49,7 +54,6 @@ type Provider struct {
 }
 
 func New(
-	log *slog.Logger,
 	professionProvider ProfessionProvider,
 	sessionProvider SessionProvider,
 	statProvider StatProvider,
@@ -57,7 +61,6 @@ func New(
 	cache CacheProvider,
 ) *Provider {
 	return &Provider{
-		log:                log,
 		professionProvider: professionProvider,
 		sessionProvider:    sessionProvider,
 		statProvider:       statProvider,
@@ -67,10 +70,12 @@ func New(
 }
 
 func (p *Provider) ActiveProfessions(ctx context.Context) ([]entity.ActiveProfession, error) {
-	const op = "internal.usecase.provider.ActiveProfessions"
+	const op = "usecase.provider.ActiveProfessions"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
 	professions, err := p.professionProvider.GetActiveProfessions(ctx)
 	if err != nil {
+		log.Error("get_active_professions_failed", slogx.Err(err))
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -83,38 +88,49 @@ func (p *Provider) ActiveProfessions(ctx context.Context) ([]entity.ActiveProfes
 		}
 	}
 
+	log.Debug("active_professions_loaded", "count", len(response))
+
 	return response, nil
 }
 
 func (p *Provider) AllProfessions(ctx context.Context) ([]entity.Profession, error) {
-	const op = "internal.usecase.provider.AllProfessions"
+	const op = "usecase.provider.AllProfessions"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
 	professions, err := p.professionProvider.GetAllProfessions(ctx)
 	if err != nil {
+		log.Error("get_all_professions_failed", slogx.Err(err))
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
+
+	log.Debug("all_professions_loaded", "count", len(professions))
 
 	return professions, nil
 }
 
 func (p *Provider) ProfessionByID(ctx context.Context, id uuid.UUID) (*entity.Profession, error) {
-	const op = "internal.usecase.provider.ProfessionByID"
+	const op = "usecase.provider.ProfessionByID"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
 	profession, err := p.professionProvider.GetProfessionByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, entity.ErrProfessionNotFound) {
+			log.Warn("profession_not_found", "profession_id", id)
 			return nil, entity.ErrProfessionNotFound
 		}
 
-		p.log.Error("Failed to get profession", "profession_id", id, "error", err)
+		log.Error("get_profession_failed", "profession_id", id, slogx.Err(err))
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
+
+	log.Debug("profession_found", "profession_id", id)
 
 	return &profession, nil
 }
 
 func (p *Provider) CreateProfession(ctx context.Context, profession entity.Profession) (uuid.UUID, error) {
-	const op = "internal.usecase.provider.CreateProfession"
+	const op = "usecase.provider.CreateProfession"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
 	if err := validateProfessionInput(profession); err != nil {
 		return uuid.Nil, fmt.Errorf("%s: %w", op, err)
@@ -125,22 +141,23 @@ func (p *Provider) CreateProfession(ctx context.Context, profession entity.Profe
 	id, err := p.professionProvider.AddProfession(ctx, profession)
 	if err != nil {
 		if errors.Is(err, entity.ErrProfessionAlreadyExists) {
-			p.log.Info("Attempt to create duplicate profession", "profession_name", profession.Name)
+			log.Warn("profession_already_exists", "profession_name", profession.Name)
 			return uuid.Nil, entity.ErrProfessionAlreadyExists
 		}
 
-		p.log.Error("Failed to add profession", "profession_name", profession.Name, "error", err)
+		log.Error("create_profession_failed", "profession_name", profession.Name, slogx.Err(err))
 
 		return uuid.Nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	p.log.Info("Profession created", "id", id, "profession_name", profession.Name)
+	log.Info("profession_created", "profession_id", id)
 
 	return id, nil
 }
 
 func (p *Provider) ChangeProfession(ctx context.Context, profession entity.Profession) error {
-	const op = "internal.usecase.provider.ChangeProfession"
+	const op = "usecase.provider.ChangeProfession"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
 	if profession.ID == uuid.Nil {
 		return entity.ErrInvalidProfessionID
@@ -152,29 +169,33 @@ func (p *Provider) ChangeProfession(ctx context.Context, profession entity.Profe
 	err := p.professionProvider.UpdateProfession(ctx, profession)
 	if err != nil {
 		if errors.Is(err, entity.ErrProfessionAlreadyExists) {
+			log.Warn("profession_already_exists", "profession_id", profession.ID)
 			return entity.ErrProfessionAlreadyExists
 		}
 
-		p.log.Error("Failed to update profession", "profession_id", profession.ID, "error", err)
+		log.Error("update_profession_failed", "profession_id", profession.ID, slogx.Err(err))
 
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	p.log.Info("Profession updated", "profession_id", profession.ID, "profession_name", profession.Name)
+	log.Info("profession_updated", "profession_id", profession.ID)
 
 	return nil
 }
 
 func (p *Provider) ProfessionSkills(ctx context.Context, professionID uuid.UUID) (*entity.ProfessionDetail, error) {
-	const op = "internal.usecase.provider.ProfessionSkills"
+	const op = "usecase.provider.ProfessionSkills"
+	log := loggerctx.FromContext(ctx).With("op", op)
 
 	if p.cache != nil {
 		cached, err := p.cache.GetProfessionData(ctx, professionID)
 		if err != nil {
-			p.log.Debug("Cache miss", "profession_id", professionID)
+			log.Warn("cache_get_failed", "profession_id", professionID, slogx.Err(err))
 		} else if cached != nil {
-			p.log.Debug("Cache hit", "profession_id", professionID)
+			log.Debug("cache_hit", "profession_id", professionID)
 			return cached, nil
+		} else {
+			log.Debug("cache_miss", "profession_id", professionID)
 		}
 	}
 
@@ -182,33 +203,31 @@ func (p *Provider) ProfessionSkills(ctx context.Context, professionID uuid.UUID)
 	if errors.Is(err, entity.ErrProfessionNotFound) {
 		return nil, entity.ErrProfessionNotFound
 	} else if err != nil {
-		p.log.Error("Failed to get profession", "profession_id", professionID, "error", err)
+		log.Error("get_profession_failed", "profession_id", professionID, slogx.Err(err))
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	latestScraping, err := p.sessionProvider.GetLatestScraping(ctx)
 	if err != nil {
-		p.log.Error("Failed to get latest scraping", "profession_id", professionID, "error", err)
+		log.Error("get_latest_scraping_failed", "profession_id", professionID, slogx.Err(err))
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	stat, err := p.statProvider.GetLatestStatByProfessionID(ctx, professionID)
 	if err != nil {
-		p.log.Error("Failed to get latest stat", "profession_id", professionID, "error", err)
+		log.Error("get_latest_stat_failed", "profession_id", professionID, slogx.Err(err))
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	vacancyCount := stat.VacancyCount
-
 	formalSkills, err := p.skillsProvider.GetFormalSkillsByProfessionAndDate(ctx, professionID, latestScraping.ID)
 	if err != nil {
-		p.log.Error("Failed to get formal skills", "profession_id", professionID, "error", err)
+		log.Error("get_formal_skills_failed", "profession_id", professionID, slogx.Err(err))
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	extractedSkills, err := p.skillsProvider.GetExtractedSkillsByProfessionAndDate(ctx, professionID, latestScraping.ID)
 	if err != nil {
-		p.log.Error("Failed to get extracted skills", "profession_id", professionID, "error", err)
+		log.Error("get_extracted_skills_failed", "profession_id", professionID, slogx.Err(err))
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -216,25 +235,30 @@ func (p *Provider) ProfessionSkills(ctx context.Context, professionID uuid.UUID)
 		ProfessionID:    professionID,
 		ProfessionName:  profession.Name,
 		ScrapedAt:       latestScraping.ScrapedAt.Format(time.RFC3339),
-		VacancyCount:    vacancyCount,
+		VacancyCount:    stat.VacancyCount,
 		FormalSkills:    p.transformAndSortSkills(formalSkills),
 		ExtractedSkills: p.transformAndSortSkills(extractedSkills),
 	}
 
 	if p.cache != nil {
 		dataCopy := *response
+		parentLog := log
 
-		go func(data entity.ProfessionDetail) {
-			cacheCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		go func(l *slog.Logger, data entity.ProfessionDetail) {
+			cacheCtx, cancel := context.WithTimeout(context.Background(), cacheSaveTimeout)
 			defer cancel()
 
+			cacheLog := l.With("async", "cache_save")
+
 			if err := p.cache.SaveProfessionData(cacheCtx, &data); err != nil {
-				p.log.Error("Failed to save cache", "error", err)
+				cacheLog.Error("cache_save_failed", "profession_id", data.ProfessionID, slogx.Err(err))
 			} else {
-				p.log.Debug("Cache saved", "profession_id", professionID)
+				cacheLog.Debug("cache_saved", "profession_id", data.ProfessionID)
 			}
-		}(dataCopy)
+		}(parentLog, dataCopy)
 	}
+
+	log.Debug("profession_skills_loaded", "profession_id", professionID)
 
 	return response, nil
 }

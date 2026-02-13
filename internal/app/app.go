@@ -2,11 +2,14 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"os/signal"
+	"syscall"
+	"time"
+
 	"psa/internal/config"
 	controllerhttp "psa/internal/controller/http"
 	"psa/internal/controller/http/v1/handler/admin"
@@ -23,12 +26,10 @@ import (
 	"psa/pkg/httpserver"
 	"psa/pkg/jwtmanager"
 	"psa/pkg/logger/slogx"
-	"syscall"
-	"time"
 )
 
 func Run(cfg *config.Config, log *slog.Logger) error {
-	const op = "internal.app.Run"
+	const op = "app.Run"
 
 	// infrastructure
 	db, err := postgresql.New(cfg.StoragePath)
@@ -53,7 +54,6 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	skillExtractor := extractor.New()
 
 	scraping := scraper.New(
-		log,
 		db,
 		db,
 		db,
@@ -63,11 +63,12 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		cache,
 	)
 
-	cronScheduler := cron.New(log, scraping)
-	cronScheduler.Start()
-	defer cronScheduler.Stop()
+	cronScheduler, err := cron.New(log, scraping)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
 
-	professionProvider := provider.New(log, db, db, db, db, cache)
+	professionProvider := provider.New(db, db, db, db, cache)
 
 	jwtManager := jwtmanager.NewJWT(
 		cfg.JWT.Secret,
@@ -77,9 +78,7 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	)
 
 	jwtAdapter := auth.NewJWTAdapter(jwtManager)
-
 	authUC := auth.New(
-		log,
 		db,
 		db,
 		jwtAdapter,
@@ -114,28 +113,43 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		httpserver.ShutdownTimeout(30*time.Second),
 	)
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err := cronScheduler.Start(ctx); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		if err := cronScheduler.Stop(stopCtx); err != nil {
+			log.Error("cron.stop.failed", slogx.Err(err))
+		}
+	}()
+
 	httpServer.Start()
-	log.Info("HTTP server started", "address", cfg.HTTPServer.Host+":"+cfg.HTTPServer.Port)
+	log.Info("http.server.started", "address", cfg.HTTPServer.Host+":"+cfg.HTTPServer.Port)
 
-	// Pseudo
-	// Graceful shutdown
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
-
+	var shutdownReason string
 	select {
-	case s := <-interrupt:
-		log.Info(op, slog.String("signal", s.String()))
+	case <-ctx.Done():
+		shutdownReason = "signal"
 	case err = <-httpServer.Notify():
-		log.Error("HTTP server error", slogx.Err(err))
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			shutdownReason = "http.error"
+			log.Error("http.server_failed", slogx.Err(err))
+		} else {
+			shutdownReason = "http.closed"
+		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err = httpServer.Shutdown(ctx); err != nil {
-		log.Error("HTTP server shutdown error", slogx.Err(err))
+	if err = httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Error("http.server.shutdown_failed", slogx.Err(err))
 	}
 
-	log.Info("App stopped gracefully")
+	log.Info("app.stopped", "reason", shutdownReason)
 	return nil
 }
