@@ -4,18 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/time/rate"
 	"io"
 	"log/slog"
 	"math"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
-	"psa/internal/config"
-	"psa/internal/entity"
 	"regexp"
 	"strings"
 	"time"
+
+	"golang.org/x/time/rate"
+
+	"psa/internal/config"
+	"psa/internal/entity"
 )
 
 const (
@@ -155,7 +157,7 @@ func (c *Client) doRequestWithRetry(ctx context.Context, req *http.Request) (*ht
 }
 
 func (c *Client) fetchMeta(ctx context.Context, query, area string) (metadata, error) {
-	const op = "repository.hh.vacancy.client.fetchMeta"
+	const op = "repository.hh.client.fetchMeta"
 
 	params := url.Values{
 		"text":         []string{query},
@@ -167,7 +169,7 @@ func (c *Client) fetchMeta(ctx context.Context, query, area string) (metadata, e
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"?"+params.Encode(), nil)
 	if err != nil {
-		return metadata{}, fmt.Errorf("%s: %w", op, err)
+		return metadata{}, fmt.Errorf("%s: build request: %w", op, err)
 	}
 
 	resp, err := c.doRequestWithRetry(ctx, req)
@@ -176,26 +178,24 @@ func (c *Client) fetchMeta(ctx context.Context, query, area string) (metadata, e
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return metadata{}, fmt.Errorf("%s: %w", op, err)
-	}
-
 	var meta metadata
-	if err := json.Unmarshal(body, &meta); err != nil {
-		return metadata{}, fmt.Errorf("%s: %w", op, err)
+	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
+		return metadata{}, fmt.Errorf("%s: decode response: %w", op, err)
 	}
 
 	if meta.Found == 0 {
-		c.logger.Error("No vacancies found for query: %s", query)
-		return metadata{}, fmt.Errorf("%s: %w", op, err)
+		c.logger.WarnContext(ctx, "vacancies.not_found",
+			slog.String("op", op),
+			slog.String("query", query),
+		)
+		return metadata{}, fmt.Errorf("%s: vacancies not found", op)
 	}
 
 	return meta, nil
 }
 
 func (c *Client) fetchIDsFromPage(ctx context.Context, page int, query, area string) ([]string, error) {
-	const op = "repository.hh.vacancy.client.fetchIDsFromPage"
+	const op = "repository.hh.client.fetchIDsFromPage"
 
 	result := make([]string, 0)
 
@@ -236,11 +236,24 @@ func (c *Client) fetchIDsFromPage(ctx context.Context, page int, query, area str
 }
 
 func (c *Client) fetchIDsVacancies(ctx context.Context, meta metadata, query, area string) ([]string, error) {
+	const op = "repository.hh.client.fetchIDsVacancies"
+
 	ids := make([]string, 0, meta.Found)
 	for i := 0; i < meta.Pages; i++ {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		temp, err := c.fetchIDsFromPage(ctx, i, query, area)
 		if err != nil {
-			c.logger.Error("Failed to fetch ids from page:", i, "query:", query, "error:", err)
+			c.logger.ErrorContext(ctx, "failed to fetch ids from page",
+				slog.String("op", op),
+				slog.Int("page", i),
+				slog.String("query", query),
+				slog.Any("error", err),
+			)
 			continue
 		}
 		ids = append(ids, temp...)
@@ -250,13 +263,13 @@ func (c *Client) fetchIDsVacancies(ctx context.Context, meta metadata, query, ar
 }
 
 func (c *Client) fetchDataVacancy(ctx context.Context, id string) (entity.VacancyData, error) {
-	const op = "repository.hh.vacancy.client.fetchDataVacancy"
+	const op = "repository.hh.client.fetchDataVacancy"
 
 	link := fmt.Sprintf("%s/%s", baseURL, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 	if err != nil {
-		return entity.VacancyData{}, fmt.Errorf("%s: %w", op, err)
+		return entity.VacancyData{}, fmt.Errorf("%s: build request: %w", op, err)
 	}
 
 	resp, err := c.doRequestWithRetry(ctx, req)
@@ -265,14 +278,9 @@ func (c *Client) fetchDataVacancy(ctx context.Context, id string) (entity.Vacanc
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return entity.VacancyData{}, fmt.Errorf("%s: %w", op, err)
-	}
-
 	var data vacancyResponse
-	if err := json.Unmarshal(body, &data); err != nil {
-		return entity.VacancyData{}, fmt.Errorf("%s: %w", op, err)
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return entity.VacancyData{}, fmt.Errorf("%s: decode response: %w", op, err)
 	}
 
 	var result entity.VacancyData
@@ -288,11 +296,17 @@ func (c *Client) fetchDataVacancy(ctx context.Context, id string) (entity.Vacanc
 }
 
 func (c *Client) fetchDataVacancies(ctx context.Context, ids []string) ([]entity.VacancyData, error) {
+	const op = "repository.hh.client.fetchDataVacancies"
+
 	result := make([]entity.VacancyData, 0, len(ids))
 	for _, id := range ids {
 		v, err := c.fetchDataVacancy(ctx, id)
 		if err != nil {
-			c.logger.Error("Failed to fetch data vacancy for id:", id, "error:", err)
+			c.logger.ErrorContext(ctx, "failed to fetch vacancy data",
+				slog.String("op", op),
+				slog.String("vacancy_id", id),
+				slog.Any("error", err),
+			)
 			continue
 		}
 
@@ -303,9 +317,9 @@ func (c *Client) fetchDataVacancies(ctx context.Context, ids []string) ([]entity
 }
 
 func (c *Client) DataProfession(ctx context.Context, query, area string) ([]entity.VacancyData, error) {
-	const op = "repository.hh.vacancy.client.DataProfession"
+	const op = "repository.hh.client.DataProfession"
 
-	ctx, cancel := context.WithTimeout(ctx, 12*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
 
 	if query == "" {
@@ -329,6 +343,12 @@ func (c *Client) DataProfession(ctx context.Context, query, area string) ([]enti
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
+
+	c.logger.InfoContext(ctx, "profession data collected",
+		slog.String("op", op),
+		slog.String("query", query),
+		slog.Int("vacancies", len(data)),
+	)
 
 	return data, nil
 }

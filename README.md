@@ -24,25 +24,16 @@ PSA автоматически собирает вакансии по задан
 
 ### Стек
 
-- **Backend**: Go, стандартный net/http, slog
-
-- **БД**: PostgreSQL (pgx)
-
-- **Кэш**: Redis
-
-- **Миграции**: [golang-migrate](github.com/golang-migrate/migrate)
-
-- **Генерация SQL**: [sqlc](https://github.com/sqlc-dev/sqlc)
-
-- **Конфигурация**: [cleanenv](github.com/ilyakaznacheev/cleanenv)
-
-- **Контейнеризация**: Docker & Docker Compose
-
-- **Background jobs**: [gocron](https://github.com/go-co-op/gocron)
-
-- **Rate limiting для hh.ru API**: rate.Limiter (5 rps - требование hh.ru API)
-
-- **Retry strategy**: Equal Jitter
+- Backend: Go, стандартный net/http, slog
+- БД: PostgreSQL (pgx)
+- Кэш: Redis
+- Миграции: [golang-migrate](https://github.com/golang-migrate/migrate)
+- Генерация SQL: [sqlc](https://github.com/sqlc-dev/sqlc)
+- Конфигурация: [cleanenv](https://github.com/ilyakaznacheev/cleanenv)
+- Контейнеризация: Docker & Docker Compose
+- Background jobs: [gocron](https://github.com/go-co-op/gocron)
+- Rate limiting для hh.ru API: rate.Limiter (5 rps - требование hh.ru API)
+- Retry strategy: Equal Jitter
 
 ### Как это работает
 
