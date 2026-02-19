@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"psa/internal/entity"
+	"psa/internal/domain"
 	postgresql "psa/internal/repository/postgresql/generated"
 	"time"
 )
@@ -21,22 +21,22 @@ func (s *Storage) SaveStat(ctx context.Context, sessionID uuid.UUID, professionI
 	return err
 }
 
-func (s *Storage) GetLatestStatByProfessionID(ctx context.Context, professionID uuid.UUID) (entity.Stat, error) {
+func (s *Storage) GetLatestStatByProfessionID(ctx context.Context, professionID uuid.UUID) (domain.Stat, error) {
 	const op = "repository.postgresql.stat.GetLatestStatByProfessionID"
 
 	row, err := s.Queries.GetLatestStatByProfessionID(ctx, professionID)
 	if err != nil {
-		return entity.Stat{}, fmt.Errorf("%s: %w", op, err)
+		return domain.Stat{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return entity.Stat{
+	return domain.Stat{
 		ProfessionID: row.ProfessionID,
 		VacancyCount: row.VacancyCount,
 		ScrapedAtID:  row.ScrapedAtID,
 	}, nil
 }
 
-func (s *Storage) GetStatsByProfessionsAndDateRange(ctx context.Context, professionIDs []uuid.UUID, startDate, endDate string) ([]entity.Stat, error) {
+func (s *Storage) GetStatsByProfessionsAndDateRange(ctx context.Context, professionIDs []uuid.UUID, startDate, endDate string) ([]domain.Stat, error) {
 	const op = "repository.postgresql.stat.GetStatsByProfessionAndDateRange"
 
 	start, err := time.Parse(time.RFC3339, startDate)
@@ -58,9 +58,9 @@ func (s *Storage) GetStatsByProfessionsAndDateRange(ctx context.Context, profess
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	stats := make([]entity.Stat, len(rows))
+	stats := make([]domain.Stat, len(rows))
 	for i, row := range rows {
-		stats[i] = entity.Stat{
+		stats[i] = domain.Stat{
 			ProfessionID: row.ProfessionID,
 			VacancyCount: row.VacancyCount,
 			ScrapedAtID:  row.ScrapedAtID,

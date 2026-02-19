@@ -11,18 +11,17 @@ import (
 	"time"
 
 	"psa/internal/config"
-	controllerhttp "psa/internal/controller/http"
-	"psa/internal/controller/http/v1/handler/admin"
-	"psa/internal/controller/http/v1/handler/public"
-	"psa/internal/repository/external/hh"
-	"psa/internal/repository/external/hh/token"
+	controllerhttp "psa/internal/handler/http"
+	"psa/internal/handler/http/v1/handler/admin"
+	"psa/internal/handler/http/v1/handler/public"
+	"psa/internal/integration/hh"
 	"psa/internal/repository/postgresql"
 	"psa/internal/repository/redis"
-	"psa/internal/usecase/auth"
-	"psa/internal/usecase/cron"
-	"psa/internal/usecase/extractor"
-	"psa/internal/usecase/provider"
-	"psa/internal/usecase/scraper"
+	"psa/internal/service/auth"
+	"psa/internal/service/cron"
+	"psa/internal/service/extractor"
+	"psa/internal/service/provider"
+	"psa/internal/service/scraper"
 	"psa/pkg/httpserver"
 	"psa/pkg/jwtmanager"
 	"psa/pkg/logger/slogx"
@@ -44,11 +43,8 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	}
 	defer cache.Close()
 
-	httpClient := &http.Client{Timeout: 30 * time.Second}
-
 	// external services
-	hhTokenManager := token.NewTokenManager(cfg.HHAuth, log)
-	hhClient := hh.New(cfg, log, httpClient, hhTokenManager)
+	hhClient := hh.NewAdapter(cfg, log)
 
 	// usecases/services
 	skillExtractor := extractor.New()

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"psa/internal/entity"
+	"psa/internal/domain"
 	postgresql "psa/internal/repository/postgresql/generated"
 )
 
@@ -44,7 +44,7 @@ func (s *Storage) SaveExtractedSkills(ctx context.Context, sessionID uuid.UUID, 
 	return err
 }
 
-func (s *Storage) GetFormalSkillsByProfessionAndDate(ctx context.Context, professionID uuid.UUID, scrapedAtID uuid.UUID) ([]entity.Skill, error) {
+func (s *Storage) GetFormalSkillsByProfessionAndDate(ctx context.Context, professionID uuid.UUID, scrapedAtID uuid.UUID) ([]domain.Skill, error) {
 	const op = "repository.postgresql.skill.GetFormalSkillsByProfessionAndDate"
 
 	rows, err := s.Queries.GetFormalSkillsByProfessionAndDate(ctx, postgresql.GetFormalSkillsByProfessionAndDateParams{
@@ -55,9 +55,9 @@ func (s *Storage) GetFormalSkillsByProfessionAndDate(ctx context.Context, profes
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	skills := make([]entity.Skill, len(rows))
+	skills := make([]domain.Skill, len(rows))
 	for i, row := range rows {
-		skills[i] = entity.Skill{
+		skills[i] = domain.Skill{
 			Skill: row.Skill,
 			Count: row.Count,
 		}
@@ -66,7 +66,7 @@ func (s *Storage) GetFormalSkillsByProfessionAndDate(ctx context.Context, profes
 	return skills, nil
 }
 
-func (s *Storage) GetExtractedSkillsByProfessionAndDate(ctx context.Context, professionID uuid.UUID, scrapedAtID uuid.UUID) ([]entity.Skill, error) {
+func (s *Storage) GetExtractedSkillsByProfessionAndDate(ctx context.Context, professionID uuid.UUID, scrapedAtID uuid.UUID) ([]domain.Skill, error) {
 	const op = "repository.postgresql.skill.GetExtractedSkillsByProfessionAndDate"
 
 	rows, err := s.Queries.GetExtractedSkillsByProfessionAndDate(ctx, postgresql.GetExtractedSkillsByProfessionAndDateParams{
@@ -77,9 +77,9 @@ func (s *Storage) GetExtractedSkillsByProfessionAndDate(ctx context.Context, pro
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	skills := make([]entity.Skill, len(rows))
+	skills := make([]domain.Skill, len(rows))
 	for i, row := range rows {
-		skills[i] = entity.Skill{
+		skills[i] = domain.Skill{
 			Skill: row.Skill,
 			Count: row.Count,
 		}

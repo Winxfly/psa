@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"psa/internal/entity"
+	"psa/internal/domain"
 	postgresql "psa/internal/repository/postgresql/generated"
 )
 
-func (s *Storage) CreateRefreshToken(ctx context.Context, token *entity.RefreshToken) error {
+func (s *Storage) CreateRefreshToken(ctx context.Context, token *domain.RefreshToken) error {
 	const op = "repository.postgresql.refresh_token.CreateRefreshToken"
 
 	_, err := s.Queries.InsertRefreshToken(ctx, postgresql.InsertRefreshTokenParams{
@@ -25,7 +25,7 @@ func (s *Storage) CreateRefreshToken(ctx context.Context, token *entity.RefreshT
 	return nil
 }
 
-func (s *Storage) GetRefreshToken(ctx context.Context, userID uuid.UUID, hashedToken string) (*entity.RefreshToken, error) {
+func (s *Storage) GetRefreshToken(ctx context.Context, userID uuid.UUID, hashedToken string) (*domain.RefreshToken, error) {
 	const op = "repository.postgresql.refresh_token.GetRefreshToken"
 
 	token, err := s.Queries.GetRefreshToken(ctx, postgresql.GetRefreshTokenParams{
@@ -40,7 +40,7 @@ func (s *Storage) GetRefreshToken(ctx context.Context, userID uuid.UUID, hashedT
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return &entity.RefreshToken{
+	return &domain.RefreshToken{
 		UserID:      token.UserID,
 		HashedToken: token.HashedToken,
 		CreatedAt:   token.CreatedAt,

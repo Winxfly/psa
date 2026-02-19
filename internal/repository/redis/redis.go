@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"psa/internal/config"
-	"psa/internal/entity"
+	"psa/internal/domain"
 	"time"
 )
 
@@ -41,7 +41,7 @@ func (c *Cache) Close() error {
 	return c.client.Close()
 }
 
-func (c *Cache) SaveProfessionData(ctx context.Context, data *entity.ProfessionDetail) error {
+func (c *Cache) SaveProfessionData(ctx context.Context, data *domain.ProfessionDetail) error {
 	const op = "internal.repository.redis.SaveProfessionData"
 
 	key := fmt.Sprintf("profession:%s:skills", data.ProfessionID.String())
@@ -54,7 +54,7 @@ func (c *Cache) SaveProfessionData(ctx context.Context, data *entity.ProfessionD
 	return c.client.Set(ctx, key, jsonData, c.ttl).Err()
 }
 
-func (c *Cache) GetProfessionData(ctx context.Context, professionID uuid.UUID) (*entity.ProfessionDetail, error) {
+func (c *Cache) GetProfessionData(ctx context.Context, professionID uuid.UUID) (*domain.ProfessionDetail, error) {
 	const op = "internal.repository.redis.GetProfessionData"
 
 	key := fmt.Sprintf("profession:%s:skills", professionID.String())
@@ -68,7 +68,7 @@ func (c *Cache) GetProfessionData(ctx context.Context, professionID uuid.UUID) (
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	var skills entity.ProfessionDetail
+	var skills domain.ProfessionDetail
 	if err := json.Unmarshal(data, &skills); err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}

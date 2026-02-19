@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"psa/internal/entity"
+	"psa/internal/domain"
 )
 
-func (s *Storage) GetUserByEmail(ctx context.Context, email string) (*entity.User, error) {
+func (s *Storage) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
 	const op = "repository.postgresql.user.GetUserByEmail"
 
 	user, err := s.Queries.GetUserByEmail(ctx, email)
@@ -21,7 +21,7 @@ func (s *Storage) GetUserByEmail(ctx context.Context, email string) (*entity.Use
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return &entity.User{
+	return &domain.User{
 		ID:             user.ID,
 		Email:          user.Email,
 		HashedPassword: user.HashedPassword,
@@ -30,7 +30,7 @@ func (s *Storage) GetUserByEmail(ctx context.Context, email string) (*entity.Use
 	}, nil
 }
 
-func (s *Storage) GetUserByID(ctx context.Context, id uuid.UUID) (*entity.User, error) {
+func (s *Storage) GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	const op = "repository.postgresql.user.GetUserByID"
 
 	user, err := s.Queries.GetUserByID(ctx, id)
@@ -42,7 +42,7 @@ func (s *Storage) GetUserByID(ctx context.Context, id uuid.UUID) (*entity.User, 
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return &entity.User{
+	return &domain.User{
 		ID:             user.ID,
 		Email:          user.Email,
 		HashedPassword: user.HashedPassword,

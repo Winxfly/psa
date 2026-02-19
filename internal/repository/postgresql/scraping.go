@@ -4,28 +4,28 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"psa/internal/entity"
+	"psa/internal/domain"
 )
 
 func (s *Storage) CreateScrapingSession(ctx context.Context) (uuid.UUID, error) {
 	return s.Queries.InsertScrapingDate(ctx)
 }
 
-func (s *Storage) GetLatestScraping(ctx context.Context) (entity.Scraping, error) {
+func (s *Storage) GetLatestScraping(ctx context.Context) (domain.Scraping, error) {
 	const op = "repository.postgresql.scraping.GetLatestScraping"
 
 	row, err := s.Queries.GetLatestScraping(ctx)
 	if err != nil {
-		return entity.Scraping{}, fmt.Errorf("%s: %w", op, err)
+		return domain.Scraping{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return entity.Scraping{
+	return domain.Scraping{
 		ID:        row.ID,
 		ScrapedAt: row.ScrapedAt,
 	}, nil
 }
 
-func (s *Storage) GetAllScrapingDates(ctx context.Context) ([]entity.Scraping, error) {
+func (s *Storage) GetAllScrapingDates(ctx context.Context) ([]domain.Scraping, error) {
 	const op = "repository.postgresql.scraping.GetAllScrapingDates"
 
 	rows, err := s.Queries.GetAllScrapingDates(ctx)
@@ -33,9 +33,9 @@ func (s *Storage) GetAllScrapingDates(ctx context.Context) ([]entity.Scraping, e
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	scrapings := make([]entity.Scraping, len(rows))
+	scrapings := make([]domain.Scraping, len(rows))
 	for i, row := range rows {
-		scrapings[i] = entity.Scraping{
+		scrapings[i] = domain.Scraping{
 			ID:        row.ID,
 			ScrapedAt: row.ScrapedAt,
 		}
