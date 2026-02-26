@@ -19,6 +19,12 @@ http_server:
   port: "8080"
   timeout: 4s
   idle_timeout: 30s
+  cors:
+    allowed_origins: ["http://localhost:3000", "http://localhost:8080"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["Content-Type", "Authorization"]
+    allow_credentials: true
+    max_age: 86400
 
 hh_retry:
   max_attempts: 3

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"psa/internal/config"
 	"psa/internal/handler/http/middleware"
 	"psa/internal/handler/http/middleware/auth"
 	v1 "psa/internal/handler/http/v1"
@@ -19,8 +20,11 @@ type V1Handlers struct {
 }
 
 // NewRouter creates a root router, installs middleware, and connects API versions.
-func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenValidator) http.Handler {
-	mw := middleware.NewManager(log, tokenValidator)
+func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenValidator, corsConfig config.CORS) (http.Handler, error) {
+	mw, err := middleware.NewManager(log, tokenValidator, corsConfig)
+	if err != nil {
+		return nil, err
+	}
 
 	// v1 router
 	v1Router := v1.New(handlers.AuthPublic, handlers.ProfessionAdmin, handlers.ProfessionPublic)
@@ -34,12 +38,9 @@ func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenV
 	v1Router.RegisterPublicRoutes(publicMux)
 	v1Router.RegisterAdminRoutes(adminMux)
 
-	// protect admin
-	authMw := mw.Auth()
-
-	adminHandler := authMw.Authenticate(
-		authMw.RequireAdmin(adminMux),
-	)
+	// apply middleware chain
+	publicHandler := mw.DefaultChain().Then(publicMux)
+	adminHandler := mw.AdminChain().Then(adminMux)
 
 	// version routing
 	root.Handle("/api/v1/", http.StripPrefix("/api/v1", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -48,13 +49,16 @@ func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenV
 			adminHandler.ServeHTTP(w, r)
 			return
 		}
-		publicMux.ServeHTTP(w, r)
+		publicHandler.ServeHTTP(w, r)
 	})))
 
 	// health check
-	root.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+	healthHandler := mw.DefaultChain().ThenFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
-	return mw.Logger()(root)
+	root.Handle("GET /health", healthHandler)
+
+	return root, nil
 }

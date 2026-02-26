@@ -94,11 +94,15 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	}
 
 	// HTTP Router
-	router := controllerhttp.NewRouter(
+	router, err := controllerhttp.NewRouter(
 		log,
 		httpHandlers,
 		authUC,
+		cfg.HTTPServer.CORS,
 	)
+	if err != nil {
+		return fmt.Errorf("%s: init router: %w", op, err)
+	}
 
 	// HTTP Server
 	httpServer := httpserver.New(

@@ -24,6 +24,15 @@ type HTTPServer struct {
 	Port        string        `yaml:"port" env:"SRV_PORT" env-default:"8080"`
 	Timeout     time.Duration `yaml:"timeout" env-default:"4s"`
 	IdleTimeout time.Duration `yaml:"idle_timeout" env-default:"60s"`
+	CORS        CORS          `yaml:"cors"`
+}
+
+type CORS struct {
+	AllowedOrigins     []string `yaml:"allowed_origins" env:"CORS_ALLOWED_ORIGINS" env-default:"*"`
+	AllowedMethods     []string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,POST,PUT,PATCH,DELETE,OPTIONS"`
+	AllowedHeaders     []string `yaml:"allowed_headers" env:"CORS_ALLOWED_HEADERS" env-default:"Content-Type,Authorization"`
+	AllowedCredentials bool     `yaml:"allowed_credentials" env:"CORS_ALLOWED_CREDENTIALS" env-default:"true"`
+	MaxAge             int      `yaml:"max_age" env:"CORS_MAX_AGE" env-default:"86400"`
 }
 
 type StoragePath struct {
