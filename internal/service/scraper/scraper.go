@@ -141,7 +141,8 @@ func (s *Scraper) processProfession(ctx context.Context, profession domain.Profe
 	log.Debug("vacancy.fetched", "vacancy_count", len(vacancyData))
 
 	formalSkills := s.aggregateFormalSkills(vacancyData)
-	extractedSkills := s.extractSkillsFromText(ctx, vacancyData, formalSkills)
+	filteredFormalSkills := s.filterRareSkills(formalSkills, 2)
+	extractedSkills := s.extractSkillsFromText(ctx, vacancyData, filteredFormalSkills)
 
 	if saveToDB {
 		if err := s.statProvider.SaveStat(ctx, sessionID, profession.ID, len(vacancyData)); err != nil {
@@ -150,10 +151,10 @@ func (s *Scraper) processProfession(ctx context.Context, profession domain.Profe
 			log.Debug("stat.saved")
 		}
 
-		if err := s.skillsProvider.SaveFormalSkills(ctx, sessionID, profession.ID, formalSkills); err != nil {
+		if err := s.skillsProvider.SaveFormalSkills(ctx, sessionID, profession.ID, filteredFormalSkills); err != nil {
 			log.Warn("formal_skills.save_failed", slogx.Err(err))
 		} else {
-			log.Debug("formal_skills.saved", "skill_count", len(formalSkills))
+			log.Debug("formal_skills.saved", "skill_count", len(filteredFormalSkills))
 		}
 
 		if err := s.skillsProvider.SaveExtractedSkills(ctx, sessionID, profession.ID, extractedSkills); err != nil {
@@ -164,7 +165,7 @@ func (s *Scraper) processProfession(ctx context.Context, profession domain.Profe
 	}
 
 	if s.cache != nil {
-		if err := s.saveToCache(ctx, profession, vacancyData, formalSkills, extractedSkills); err != nil {
+		if err := s.saveToCache(ctx, profession, vacancyData, filteredFormalSkills, extractedSkills); err != nil {
 			log.Warn("cache.save_failed", slogx.Err(err))
 		} else {
 			log.Debug("cache.saved")
@@ -182,6 +183,16 @@ func (s *Scraper) aggregateFormalSkills(data []domain.VacancyData) map[string]in
 		}
 	}
 	return skills
+}
+
+func (s *Scraper) filterRareSkills(skills map[string]int, minCount int) map[string]int {
+	result := make(map[string]int)
+	for skill, count := range skills {
+		if count >= minCount {
+			result[skill] = count
+		}
+	}
+	return result
 }
 
 func (s *Scraper) extractSkillsFromText(ctx context.Context, data []domain.VacancyData, whiteList map[string]int) map[string]int {
