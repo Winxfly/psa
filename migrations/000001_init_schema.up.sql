@@ -1,6 +1,5 @@
 -- Расширение для генерации UUID
-CREATE
-EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Таблица профессий
 CREATE TABLE profession
@@ -47,6 +46,13 @@ CREATE TABLE stat
     scraped_at_id UUID    NOT NULL REFERENCES scraping (id) ON DELETE CASCADE
 );
 
+CREATE TABLE stat_daily (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profession_id UUID    NOT NULL REFERENCES profession (id) ON DELETE CASCADE,
+    vacancy_count INTEGER NOT NULL,
+    scraped_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE users
 (
     id              UUID PRIMARY KEY             DEFAULT gen_random_uuid(),
@@ -70,3 +76,4 @@ CREATE INDEX idx_skill_extracted_scraped_profession ON skill_extracted (scraped_
 CREATE INDEX idx_stat_scraped_profession ON stat (scraped_at_id, profession_id);
 CREATE INDEX idx_scraping_scraped_at ON scraping (scraped_at);
 CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens (expires_at);
+CREATE INDEX idx_stat_daily_profession_date ON stat_daily (profession_id, scraped_at);
