@@ -35,16 +35,18 @@ func NewAdapter(cfg *config.Config, logger *slog.Logger) *Adapter {
 }
 
 func (a *Adapter) FetchDataProfession(ctx context.Context, query, area string) ([]domain.VacancyData, error) {
-	dto, err := a.client.fetchDataProfession(ctx, query, area)
+	profData, err := a.client.fetchDataProfession(ctx, query, area)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]domain.VacancyData, 0, len(dto))
+	result := make([]domain.VacancyData, 0, len(profData.Vacancies))
 
-	for _, item := range dto {
+	for _, item := range profData.Vacancies {
 		v := domain.VacancyData{
+			Skills:      make([]string, 0),
 			Description: item.Description,
+			TotalFound:  profData.TotalFound,
 		}
 
 		for _, skill := range item.KeySkills {

@@ -298,37 +298,40 @@ func (c *client) fetchDataVacancies(ctx context.Context, ids []string) ([]vacanc
 	return result, nil
 }
 
-func (c *client) fetchDataProfession(ctx context.Context, query, area string) ([]vacancyResponse, error) {
+func (c *client) fetchDataProfession(ctx context.Context, query, area string) (professionData, error) {
 	const op = "integration.hh.hClient.fetchDataProfession"
 
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
 
 	if query == "" {
-		return nil, fmt.Errorf("query cannot be empty %s", op)
+		return professionData{}, fmt.Errorf("query cannot be empty %s", op)
 	}
 	if area == "" {
-		return nil, fmt.Errorf("area cannot be empty %s", op)
+		return professionData{}, fmt.Errorf("area cannot be empty %s", op)
 	}
 
 	meta, err := c.fetchMeta(ctx, query, area)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+		return professionData{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	ids, err := c.fetchIDsVacancies(ctx, meta, query, area)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+		return professionData{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	data, err := c.fetchDataVacancies(ctx, ids)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+		return professionData{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	c.logger.InfoContext(ctx, op, "event", "data_collected", "query", query, "vacancies_count", len(data))
+	c.logger.InfoContext(ctx, op, "event", "data_collected", "query", query, "vacancies_count", len(data), "total_found", meta.Found)
 
-	return data, nil
+	return professionData{
+		Vacancies:  data,
+		TotalFound: meta.Found,
+	}, nil
 }
 
 func isRetryable(statusCode int) bool {
