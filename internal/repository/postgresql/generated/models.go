@@ -53,6 +53,13 @@ type Stat struct {
 	ScrapedAtID  uuid.UUID `json:"scraped_at_id"`
 }
 
+type StatDaily struct {
+	ID           uuid.UUID `json:"id"`
+	ProfessionID uuid.UUID `json:"profession_id"`
+	VacancyCount int32     `json:"vacancy_count"`
+	ScrapedAt    time.Time `json:"scraped_at"`
+}
+
 type User struct {
 	ID             uuid.UUID          `json:"id"`
 	Email          string             `json:"email"`
