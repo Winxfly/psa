@@ -17,3 +17,8 @@ type vacancyResponse struct {
 		Name string `json:"name"`
 	} `json:"key_skills"`
 }
+
+type professionData struct {
+	Vacancies  []vacancyResponse
+	TotalFound int
+}
