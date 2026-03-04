@@ -35,6 +35,11 @@ type StatProvider interface {
 	GetLatestStatByProfessionID(ctx context.Context, professionID uuid.UUID) (domain.Stat, error)
 }
 
+type DailyStatProvider interface {
+	GetStatDailyByProfessionID(ctx context.Context, professionID uuid.UUID) ([]domain.StatDailyPoint, error)
+	GetStatDailyByProfessionIDs(ctx context.Context, professionIDs []uuid.UUID) (map[uuid.UUID][]domain.StatDailyPoint, error)
+}
+
 type SkillsProvider interface {
 	GetFormalSkillsByProfessionAndDate(ctx context.Context, professionID uuid.UUID, scrapedAtID uuid.UUID) ([]domain.Skill, error)
 	GetExtractedSkillsByProfessionAndDate(ctx context.Context, professionID uuid.UUID, scrapedAtID uuid.UUID) ([]domain.Skill, error)
@@ -51,6 +56,7 @@ type Provider struct {
 	statProvider       StatProvider
 	skillsProvider     SkillsProvider
 	cache              CacheProvider
+	dailyStatProvider  DailyStatProvider
 }
 
 func New(
@@ -59,6 +65,7 @@ func New(
 	statProvider StatProvider,
 	skillsProvider SkillsProvider,
 	cache CacheProvider,
+	dailyStatProvider DailyStatProvider,
 ) *Provider {
 	return &Provider{
 		professionProvider: professionProvider,
@@ -66,6 +73,7 @@ func New(
 		statProvider:       statProvider,
 		skillsProvider:     skillsProvider,
 		cache:              cache,
+		dailyStatProvider:  dailyStatProvider,
 	}
 }
 
@@ -192,10 +200,10 @@ func (p *Provider) ProfessionSkills(ctx context.Context, professionID uuid.UUID)
 		if err != nil {
 			log.Warn("cache_get_failed", "profession_id", professionID, slogx.Err(err))
 		} else if cached != nil {
-			log.Debug("cache_hit", "profession_id", professionID)
+			log.Info("cache_hit", "profession_id", professionID)
 			return cached, nil
 		} else {
-			log.Debug("cache_miss", "profession_id", professionID)
+			log.Info("cache_miss", "profession_id", professionID)
 		}
 	}
 
@@ -245,6 +253,12 @@ func (p *Provider) ProfessionSkills(ctx context.Context, professionID uuid.UUID)
 		parentLog := log
 
 		go func(l *slog.Logger, data domain.ProfessionDetail) {
+			defer func() {
+				if r := recover(); r != nil {
+					l.Error("cache_save_panic", "recover", r)
+				}
+			}()
+
 			cacheCtx, cancel := context.WithTimeout(context.Background(), cacheSaveTimeout)
 			defer cancel()
 
@@ -277,6 +291,34 @@ func (p *Provider) transformAndSortSkills(skills []domain.Skill) []domain.SkillR
 	})
 
 	return resp
+}
+
+func (p *Provider) ProfessionTrend(ctx context.Context, professionID uuid.UUID) (*domain.ProfessionTrend, error) {
+	const op = "service.provider.ProfessionTrend"
+	log := loggerctx.FromContext(ctx).With("op", op)
+
+	profession, err := p.professionProvider.GetProfessionByID(ctx, professionID)
+	if err != nil {
+		if errors.Is(err, domain.ErrProfessionNotFound) {
+			return nil, domain.ErrProfessionNotFound
+		}
+		log.Error("get_profession_failed", "profession_id", professionID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	points, err := p.dailyStatProvider.GetStatDailyByProfessionID(ctx, professionID)
+	if err != nil {
+		log.Error("get_stat_daily_failed", "profession_id", professionID, slogx.Err(err))
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	log.Debug("profession_trend_loaded", "profession_id", professionID, "points_count", len(points))
+
+	return &domain.ProfessionTrend{
+		ProfessionID:   professionID,
+		ProfessionName: profession.Name,
+		Data:           points,
+	}, nil
 }
 
 func validateProfessionInput(profession domain.Profession) error {
