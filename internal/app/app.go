@@ -46,10 +46,11 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	// external services
 	hhClient := hh.NewAdapter(cfg, log)
 
-	// usecases/services
+	// services
 	skillExtractor := extractor.New()
 
 	scraping := scraper.New(
+		db,
 		db,
 		db,
 		db,
@@ -64,7 +65,7 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	professionProvider := provider.New(db, db, db, db, cache)
+	professionProvider := provider.New(db, db, db, db, cache, db)
 
 	jwtManager := jwtmanager.NewJWT(
 		cfg.JWT.Secret,
@@ -85,12 +86,14 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	// HTTP handlers v1
 	authPublicHandler := public.NewAuthHandler(authUC)
 	professionPublicHandler := public.NewProfessionHandler(professionProvider)
-	professionAdminHandler := admin.NewProfessionAdminHandler(professionProvider)
+	professionAdminHandler := admin.NewProfessionAdminHandler(professionProvider, scraping)
+	trendHandler := public.NewTrendHandler(professionProvider)
 
 	httpHandlers := controllerhttp.V1Handlers{
 		AuthPublic:       authPublicHandler,
 		ProfessionPublic: professionPublicHandler,
 		ProfessionAdmin:  professionAdminHandler,
+		Trend:            trendHandler,
 	}
 
 	// HTTP Router
@@ -123,12 +126,12 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		if err := cronScheduler.Stop(stopCtx); err != nil {
-			log.Error("cron.stop.failed", slogx.Err(err))
+			log.Error("cron_stop_failed", slogx.Err(err))
 		}
 	}()
 
 	httpServer.Start()
-	log.Info("http.server.started", "address", cfg.HTTPServer.Host+":"+cfg.HTTPServer.Port)
+	log.Info("http_server_started", "address", cfg.HTTPServer.Host+":"+cfg.HTTPServer.Port)
 
 	var shutdownReason string
 	select {
@@ -136,10 +139,10 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		shutdownReason = "signal"
 	case err = <-httpServer.Notify():
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			shutdownReason = "http.error"
-			log.Error("http.server_failed", slogx.Err(err))
+			shutdownReason = "http_error"
+			log.Error("http_server_failed", slogx.Err(err))
 		} else {
-			shutdownReason = "http.closed"
+			shutdownReason = "http_closed"
 		}
 	}
 
@@ -147,9 +150,9 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	defer cancel()
 
 	if err = httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Error("http.server.shutdown_failed", slogx.Err(err))
+		log.Error("http server shutdown failed", slogx.Err(err))
 	}
 
-	log.Info("app.stopped", "reason", shutdownReason)
+	log.Info("app_stopped", "reason", shutdownReason)
 	return nil
 }
