@@ -17,6 +17,7 @@ type V1Handlers struct {
 	AuthPublic       *public.AuthHandler
 	ProfessionPublic *public.ProfessionHandler
 	ProfessionAdmin  *admin.ProfessionAdminHandler
+	Trend            *public.TrendHandler
 }
 
 // NewRouter creates a root router, installs middleware, and connects API versions.
@@ -27,7 +28,7 @@ func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenV
 	}
 
 	// v1 router
-	v1Router := v1.New(handlers.AuthPublic, handlers.ProfessionAdmin, handlers.ProfessionPublic)
+	v1Router := v1.New(handlers.AuthPublic, handlers.ProfessionAdmin, handlers.ProfessionPublic, handlers.Trend)
 
 	// mux
 	root := http.NewServeMux()

@@ -3,6 +3,7 @@ package public
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -16,6 +17,7 @@ import (
 type ProfessionProvider interface {
 	ActiveProfessions(ctx context.Context) ([]domain.ActiveProfession, error)
 	ProfessionSkills(ctx context.Context, professionID uuid.UUID) (*domain.ProfessionDetail, error)
+	ProfessionTrend(ctx context.Context, professionID uuid.UUID) (*domain.ProfessionTrend, error)
 }
 
 type ProfessionHandler struct {
@@ -34,7 +36,7 @@ func (h *ProfessionHandler) ListProfessions(w http.ResponseWriter, r *http.Reque
 
 	professions, err := h.provider.ActiveProfessions(ctx)
 	if err != nil {
-		log.Error("profession.list.failed", slogx.Err(err))
+		log.Error("profession_list_failed", slogx.Err(err))
 		return handler.StatusInternalServerError("Failed to get professions")
 	}
 
@@ -47,7 +49,7 @@ func (h *ProfessionHandler) ListProfessions(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	log.Debug("profession.list.success", "count", len(professions))
+	log.Debug("profession_list_success", "count", len(professions))
 
 	handler.RespondJSON(w, http.StatusOK, resp)
 	return nil
@@ -59,13 +61,15 @@ func (h *ProfessionHandler) LastProfessionDetails(w http.ResponseWriter, r *http
 
 	professionID, err := handler.PathUUID(r, "id")
 	if err != nil {
-		log.Warn("profession.details.invalid_id", slogx.Err(err))
+		log.Warn("profession_details_invalid_id", slogx.Err(err))
 		return handler.StatusBadRequest("Invalid profession ID")
 	}
 
+	includeTrend := r.URL.Query().Get("trend") == "true"
+
 	profession, err := h.provider.ProfessionSkills(ctx, professionID)
 	if err != nil {
-		log.Warn("profession.details.not_found", "profession_id", professionID)
+		log.Warn("profession_details_not_found", "profession_id", professionID)
 		return handler.StatusNotFound("Profession not found")
 	}
 
@@ -92,7 +96,23 @@ func (h *ProfessionHandler) LastProfessionDetails(w http.ResponseWriter, r *http
 		}
 	}
 
-	log.Debug("profession.details.success", "profession_id", professionID)
+	if includeTrend {
+		trend, err := h.provider.ProfessionTrend(ctx, professionID)
+		if err != nil {
+			log.Warn("profession_trend_failed", "profession_id", professionID, slogx.Err(err))
+		} else {
+			resp.Trend = make([]response.TrendPoint, len(trend.Data))
+			for i, point := range trend.Data {
+				resp.Trend[i] = response.TrendPoint{
+					Date:         point.Date.Format(time.RFC3339),
+					VacancyCount: point.VacancyCount,
+				}
+			}
+			log.Debug("profession_trend_loaded", "profession_id", professionID, "points_count", len(trend.Data))
+		}
+	}
+
+	log.Debug("profession_details_success", "profession_id", professionID)
 
 	handler.RespondJSON(w, http.StatusOK, resp)
 	return nil

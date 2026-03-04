@@ -20,13 +20,19 @@ type ProfessionAdminAccesser interface {
 	ChangeProfession(ctx context.Context, profession domain.Profession) error
 }
 
-type ProfessionAdminHandler struct {
-	profession ProfessionAdminAccesser
+type ScrapingProvider interface {
+	ProcessActiveProfessions(ctx context.Context, saveToDB bool) error
 }
 
-func NewProfessionAdminHandler(profession ProfessionAdminAccesser) *ProfessionAdminHandler {
+type ProfessionAdminHandler struct {
+	profession ProfessionAdminAccesser
+	scraping   ScrapingProvider
+}
+
+func NewProfessionAdminHandler(profession ProfessionAdminAccesser, scraping ScrapingProvider) *ProfessionAdminHandler {
 	return &ProfessionAdminHandler{
 		profession: profession,
+		scraping:   scraping,
 	}
 }
 
@@ -36,7 +42,7 @@ func (h *ProfessionAdminHandler) Create(w http.ResponseWriter, r *http.Request) 
 
 	var req request.CreateProfessionRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
-		log.Warn("profession.admin.create.decode_failed", slogx.Err(err))
+		log.Warn("profession_admin_create_decode_failed", slogx.Err(err))
 
 		return err
 	}
@@ -49,12 +55,12 @@ func (h *ProfessionAdminHandler) Create(w http.ResponseWriter, r *http.Request) 
 
 	id, err := h.profession.CreateProfession(ctx, profession)
 	if err != nil {
-		log.Warn("profession.admin.create.conflict", "name", profession.Name)
+		log.Warn("profession_admin_create_conflict", "name", profession.Name)
 
 		return handler.StatusConflict("Profession already exists")
 	}
 
-	log.Info("profession.admin.create.success", "profession_id", id, "name", profession.Name)
+	log.Info("profession_admin_create_success", "profession_id", id, "name", profession.Name)
 
 	handler.RespondJSON(w, http.StatusCreated, response.ProfessionAdminResponse{
 		ID:           id.String(),
@@ -72,13 +78,13 @@ func (h *ProfessionAdminHandler) Change(w http.ResponseWriter, r *http.Request) 
 
 	professionID, err := handler.PathUUID(r, "id")
 	if err != nil {
-		log.Warn("profession.admin.change.invalid_id", slogx.Err(err))
+		log.Warn("profession_admin_change_invalid_id", slogx.Err(err))
 		return err
 	}
 
 	var req request.UpdateProfessionRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
-		log.Warn("profession.admin.change.decode_failed", slogx.Err(err))
+		log.Warn("profession_admin_change_decode_failed", slogx.Err(err))
 		return err
 	}
 
@@ -90,11 +96,11 @@ func (h *ProfessionAdminHandler) Change(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := h.profession.ChangeProfession(ctx, profession); err != nil {
-		log.Error("profession.admin.change.failed", "profession_id", professionID, slogx.Err(err))
+		log.Error("profession_admin_change_failed", "profession_id", professionID, slogx.Err(err))
 		return handler.StatusInternalServerError("Failed to change profession")
 	}
 
-	log.Info("profession.admin.change.success", "profession_id", professionID)
+	log.Info("profession_admin_change_success", "profession_id", professionID)
 
 	handler.RespondJSON(w, http.StatusOK, response.ProfessionAdminResponse{
 		ID:           profession.ID.String(),
@@ -112,7 +118,7 @@ func (h *ProfessionAdminHandler) ListAllProfessions(w http.ResponseWriter, r *ht
 
 	professions, err := h.profession.AllProfessions(ctx)
 	if err != nil {
-		log.Error("profession.admin.list.failed", slogx.Err(err))
+		log.Error("profession_admin_list_failed", slogx.Err(err))
 
 		return handler.StatusInternalServerError("Failed to get all professions")
 	}
@@ -127,8 +133,31 @@ func (h *ProfessionAdminHandler) ListAllProfessions(w http.ResponseWriter, r *ht
 		}
 	}
 
-	log.Debug("profession.admin.list.success", "count", len(professions))
+	log.Debug("profession_admin_list_success", "count", len(professions))
 
 	handler.RespondJSON(w, http.StatusOK, resp)
+	return nil
+}
+
+func (h *ProfessionAdminHandler) TriggerScraping(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	log := loggerctx.FromContext(ctx)
+
+	log.Info("scraping_triggered")
+
+	go func() {
+		ctx := loggerctx.WithLogger(context.Background(), log)
+		ctxLog := loggerctx.FromContext(ctx)
+		if err := h.scraping.ProcessActiveProfessions(ctx, true); err != nil {
+			ctxLog.Error("scraping_process_failed", slogx.Err(err))
+		} else {
+			ctxLog.Info("scraping_completed")
+		}
+	}()
+
+	handler.RespondJSON(w, http.StatusAccepted, map[string]string{
+		"status": "started",
+	})
+
 	return nil
 }
