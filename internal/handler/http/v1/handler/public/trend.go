@@ -47,7 +47,7 @@ func (h *TrendHandler) GetProfessionTrend(w http.ResponseWriter, r *http.Request
 	resp := response.ProfessionTrendResponse{
 		ProfessionID:   trend.ProfessionID.String(),
 		ProfessionName: trend.ProfessionName,
-		Data:           make([]response.TrendPoint, 0, len(trend.Data)),
+		Data:           make([]response.TrendPoint, len(trend.Data)),
 	}
 
 	for i, point := range trend.Data {
