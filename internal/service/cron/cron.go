@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/google/uuid"
 
 	"psa/pkg/logger/loggerctx"
 	"psa/pkg/logger/slogx"
@@ -30,7 +31,7 @@ func New(log *slog.Logger, scraper ScrapingProvider) (*Cron, error) {
 
 	location, err := time.LoadLocation("Europe/Moscow")
 	if err != nil {
-		log.Warn("location.load_failed", slogx.Err(err))
+		log.Warn("location_load_failed", slogx.Err(err))
 		location = time.UTC
 	}
 
@@ -67,10 +68,10 @@ func (c *Cron) Start(ctx context.Context) error {
 		gocron.WithName("monthly_scraping"),
 	)
 	if err != nil {
-		log.Error("monthly.schedule_failed", slogx.Err(err))
+		log.Error("monthly_schedule_failed", slogx.Err(err))
 		return fmt.Errorf("%s: monthly job: %w", op, err)
 	}
-	log.Debug("monthly.scheduled", "schedule", "0 3 15 * *")
+	log.Debug("monthly_scheduled", "schedule", "0 3 15 * *")
 
 	// Daily job
 	_, err = c.scheduler.NewJob(
@@ -81,10 +82,10 @@ func (c *Cron) Start(ctx context.Context) error {
 		gocron.WithName("daily_scraping"),
 	)
 	if err != nil {
-		log.Error("daily.schedule_failed", slogx.Err(err))
+		log.Error("daily_schedule_failed", slogx.Err(err))
 		return fmt.Errorf("%s: daily job: %w", op, err)
 	}
-	log.Debug("daily.scheduled", "schedule", "0 3 1-14,16-31 * *")
+	log.Debug("daily_scheduled", "schedule", "0 3 1-14,16-31 * *")
 
 	c.scheduler.Start()
 	log.Info("scheduler_started")
@@ -123,23 +124,19 @@ func (c *Cron) Stop(ctx context.Context) error {
 
 func (c *Cron) runScrapingJob(ctx context.Context, saveToDB bool, jobType string) {
 	const op = "service.cron.runScrapingJob"
-	log := c.log.With("op", op, "job", jobType)
+	runID := uuid.New().String()
+	log := c.log.With("op", op, "job", jobType, "run_id", runID)
 
-	start := time.Now()
-	defer func() {
-		log.Debug("finished", "duration", time.Since(start))
-	}()
-
-	log.Info("started")
+	log.Info("job_started")
 
 	ctxWithLogger := loggerctx.WithLogger(ctx, log)
 	ctxJob, cancel := context.WithTimeout(ctxWithLogger, jobTimeout)
 	defer cancel()
 
 	if err := c.scraper.ProcessActiveProfessions(ctxJob, saveToDB); err != nil {
-		log.Error("failed", slogx.Err(err))
+		log.Error("job_failed", slogx.Err(err))
 		return
 	}
 
-	log.Info("completed")
+	log.Info("job_completed")
 }

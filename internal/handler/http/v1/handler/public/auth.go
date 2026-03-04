@@ -41,11 +41,11 @@ func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) error {
 
 	tokenPair, err := h.authenticator.Signin(r.Context(), req.Email, req.Password)
 	if err != nil {
-		log.Warn("auth.signin.failed", "reason", "invalid_credentials")
+		log.Warn("auth_signin_failed", "reason", "invalid_credentials")
 		return handler.StatusUnauthorized("Invalid credentials")
 	}
 
-	log.Info("auth.signin.success")
+	log.Info("auth_signin_success")
 
 	resp := response.TokenPairResponse{
 		AccessToken:  tokenPair.AccessToken,
@@ -71,7 +71,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) error {
 
 	tokenPair, err := h.authenticator.RefreshTokens(r.Context(), req.RefreshToken)
 	if err != nil {
-		log.Warn("auth.token.refresh.failed", "reason", "invalid_token")
+		log.Warn("auth_token_refresh_failed", "reason", "invalid_token")
 		return handler.StatusUnauthorized("Invalid refresh token")
 	}
 
@@ -97,10 +97,10 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if err := h.authenticator.Logout(r.Context(), req.RefreshToken); err != nil {
-		log.Warn("auth.logout.failed", "error", err)
+		log.Warn("auth_logout_failed", "error", err)
 	}
 
-	log.Info("auth.logout.success")
+	log.Info("auth_logout_success")
 
 	handler.RespondJSON(w, http.StatusOK, response.LogoutResponse{
 		Message: "Successfully logged out",

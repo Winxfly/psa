@@ -54,7 +54,7 @@ func NewLoggerMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
 			ww := &responseWriter{ResponseWriter: w}
 			start := time.Now()
 
-			log.InfoContext(ctx, "request started",
+			logWithRequestID.InfoContext(ctx, "request_started",
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.String("remote_addr", r.RemoteAddr),
@@ -62,7 +62,7 @@ func NewLoggerMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
 			)
 
 			defer func() {
-				log.InfoContext(ctx, "request completed",
+				logWithRequestID.InfoContext(ctx, "request_completed",
 					slog.Int("status", ww.status),
 					slog.Int("bytes", ww.bytesWritten),
 					slog.String("duration", time.Since(start).String()),

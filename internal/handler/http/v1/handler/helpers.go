@@ -111,7 +111,7 @@ func sendJSON(w http.ResponseWriter, status int, v any) {
 	enc.SetEscapeHTML(true)
 
 	if err := enc.Encode(v); err != nil {
-		slog.Debug("json.response.encode_failed", "error", err)
+		slog.Debug("json_response_encode_failed", "error", err)
 	}
 }
 
