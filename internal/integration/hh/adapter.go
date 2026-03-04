@@ -34,10 +34,10 @@ func NewAdapter(cfg *config.Config, logger *slog.Logger) *Adapter {
 	}
 }
 
-func (a *Adapter) FetchDataProfession(ctx context.Context, query, area string) ([]domain.VacancyData, error) {
+func (a *Adapter) FetchDataProfession(ctx context.Context, query, area string) ([]domain.VacancyData, int, error) {
 	profData, err := a.client.fetchDataProfession(ctx, query, area)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	result := make([]domain.VacancyData, 0, len(profData.Vacancies))
@@ -46,7 +46,6 @@ func (a *Adapter) FetchDataProfession(ctx context.Context, query, area string) (
 		v := domain.VacancyData{
 			Skills:      make([]string, 0),
 			Description: item.Description,
-			TotalFound:  profData.TotalFound,
 		}
 
 		for _, skill := range item.KeySkills {
@@ -61,5 +60,5 @@ func (a *Adapter) FetchDataProfession(ctx context.Context, query, area string) (
 		result = append(result, v)
 	}
 
-	return result, nil
+	return result, profData.TotalFound, nil
 }
