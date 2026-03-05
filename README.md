@@ -232,7 +232,7 @@ Response 200 OK:
 ]
 ```
 
-#### Получить последние агрегированные данные по профессии
+#### Получить последние агрегированные данные о профессии
 
 ##### GET /api/v1/professions/{id}/latest
 
@@ -261,6 +261,73 @@ Response 200 OK:
   ]
 }
 ```
+
+#### Получить последние агрегированные данные о профессии и динамику вакансий за всё время
+
+##### GET /api/v1/professions/{id}/latest?trend=true
+
+```bash
+curl http://localhost:8080/api/v1/professions/6e8b30bd-8ea9-4906-89f9-00dd1c1e6653/latest?trend=true
+```
+
+Response 200 OK:
+```json
+{
+  "profession_id": "6e8b30bd-8ea9-4906-89f9-00dd1c1e6653",
+  "profession_name": "Go Developer",
+  "scraped_at": "2026-01-28T04:54:23Z",
+  "vacancy_count": 352,
+  "formal_skills": [
+    {
+      "skill": "golang",
+      "count": 212
+    }
+  ],
+  "extracted_skills": [
+    {
+      "skill": "go",
+      "count": 563
+    }
+  ],
+  "trend": [
+    {
+      "date": "2026-03-01T11:56:31Z",
+      "vacancy_count": 330
+    },
+    {
+      "date": "2026-03-02T00:40:15Z",
+      "vacancy_count": 323
+    }
+  ]
+}
+```
+
+#### Получить динамику вакансий о профессии за всё время
+
+##### GET /api/v1/professions/{id}/trend
+
+```bash
+curl http://localhost:8080/api/v1/professions/6e8b30bd-8ea9-4906-89f9-00dd1c1e6653/trend
+```
+
+Response 200 OK:
+```json
+{
+  "profession_id": "6e8b30bd-8ea9-4906-89f9-00dd1c1e6653",
+  "profession_name": "Go Developer",
+  "data": [
+    {
+      "date": "2026-03-01T11:56:31Z",
+      "vacancy_count": 330
+    },
+    {
+      "date": "2026-03-02T00:40:15Z",
+      "vacancy_count": 323
+    }
+  ]
+}
+```
+
 ### Административные API
 Все административные эндпоинты требуют access token с ролью admin
 
@@ -370,5 +437,21 @@ Response 200 OK:
   "name": "C# Developer",
   "vacancy_query": "C#",
   "is_active": true
+}
+```
+
+#### Запуск сбора данных вручную (все профессии)
+
+##### POST /api/v1/admin/scraping/trigger
+
+```bash
+curl -X POST http://localhost:8080/api/v1/admin/scraping/trigger \
+  -H "Authorization: Bearer <access-token>"
+```
+
+Response 202 Accepted:
+```json
+{
+  "status": "started"
 }
 ```
