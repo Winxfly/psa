@@ -32,7 +32,7 @@ PSA автоматически собирает вакансии по задан
 - Конфигурация: [cleanenv](https://github.com/ilyakaznacheev/cleanenv)
 - Контейнеризация: Docker & Docker Compose
 - Background jobs: [gocron](https://github.com/go-co-op/gocron)
-- Rate limiting для hh.ru API: rate.Limiter (5 rps - требование hh.ru API)
+- Rate limiting для hh.ru API: rate.Limiter
 - Retry strategy: Equal Jitter
 
 ### Как это работает
