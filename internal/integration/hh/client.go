@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"log/slog"
 	"math"
@@ -23,6 +24,11 @@ const (
 
 	// HH API allows access to max 2000 vacancies (20 pages * 100 per page)
 	maxVacancies = 2000
+
+	workers     = 25
+	pageWorkers = 5
+
+	rps = 35
 )
 
 type tokenProvider interface {
@@ -43,7 +49,7 @@ func newClient(cfg *config.Config, logger *slog.Logger, hClient *http.Client, to
 		cfg:     cfg,
 		logger:  logger,
 		hClient: hClient,
-		limiter: rate.NewLimiter(5, 5),
+		limiter: rate.NewLimiter(rps, rps),
 		token:   token,
 	}
 }
@@ -87,15 +93,17 @@ func (c *client) doRequestWithRetry(ctx context.Context, req *http.Request) (*ht
 			return nil, fmt.Errorf("%s: retry timeout exceeded", op)
 		}
 
+		reqClone := req.Clone(ctx)
+
 		if err := c.limiter.Wait(ctx); err != nil {
 			return nil, fmt.Errorf("%s: rate limiter: %w", op, err)
 		}
 
-		if err := c.setHeaders(req); err != nil {
+		if err := c.setHeaders(reqClone); err != nil {
 			return nil, fmt.Errorf("%s: set headers: %w", op, err)
 		}
 
-		resp, err := c.hClient.Do(req)
+		resp, err := c.hClient.Do(reqClone)
 		if err != nil {
 			if attempt < c.cfg.HHRetry.MaxAttempts-1 {
 				wait := c.calculateWait(attempt)
@@ -239,20 +247,39 @@ func (c *client) fetchIDsVacancies(ctx context.Context, meta metadata, query, ar
 	}
 
 	ids := make([]string, 0, lenFound)
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	sem := make(chan struct{}, pageWorkers)
+
 	for i := 0; i < meta.Pages; i++ {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		default:
+		case sem <- struct{}{}:
 		}
 
-		temp, err := c.fetchIDsFromPage(ctx, i, query, area)
-		if err != nil {
-			c.logger.ErrorContext(ctx, op, "event", "fetch_ids_failed", "page", i, "query", query, "error", err)
-			continue
-		}
-		ids = append(ids, temp...)
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			temp, err := c.fetchIDsFromPage(ctx, i, query, area)
+			if err != nil {
+				c.logger.ErrorContext(ctx, op, "event", "fetch_ids_failed", "page", i, "query", query, "error", err)
+				return
+			}
+
+			mu.Lock()
+			ids = append(ids, temp...)
+			mu.Unlock()
+		}(i)
+
 	}
+
+	wg.Wait()
 
 	return ids, nil
 }
@@ -284,14 +311,52 @@ func (c *client) fetchDataVacancy(ctx context.Context, id string) (vacancyRespon
 func (c *client) fetchDataVacancies(ctx context.Context, ids []string) ([]vacancyResponse, error) {
 	const op = "integration.hh.hClient.fetchDataVacancies"
 
+	jobs := make(chan string, workers)
+	data := make(chan vacancyResponse, workers)
 	result := make([]vacancyResponse, 0, len(ids))
-	for _, id := range ids {
-		v, err := c.fetchDataVacancy(ctx, id)
-		if err != nil {
-			c.logger.ErrorContext(ctx, op, "event", "fetch_vacancy_failed", "vacancy_id", id, "error", err)
-			continue
-		}
 
+	var wg sync.WaitGroup
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			for id := range jobs {
+				vac, err := c.fetchDataVacancy(ctx, id)
+				if err != nil {
+					c.logger.ErrorContext(ctx, op, "event", "fetch_vacancy_failed", "vacancy_id", id, "error", err)
+					continue
+				}
+
+				select {
+				case data <- vac:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+
+	go func() {
+		defer close(jobs)
+
+		for _, id := range ids {
+			select {
+			case jobs <- id:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	go func() {
+		wg.Wait()
+		close(data)
+	}()
+
+	for v := range data {
 		result = append(result, v)
 	}
 
@@ -305,10 +370,10 @@ func (c *client) fetchDataProfession(ctx context.Context, query, area string) (p
 	defer cancel()
 
 	if query == "" {
-		return professionData{}, fmt.Errorf("query cannot be empty %s", op)
+		return professionData{}, fmt.Errorf("%s: query cannot be empty", op)
 	}
 	if area == "" {
-		return professionData{}, fmt.Errorf("area cannot be empty %s", op)
+		return professionData{}, fmt.Errorf("%s: area cannot be empty", op)
 	}
 
 	meta, err := c.fetchMeta(ctx, query, area)
