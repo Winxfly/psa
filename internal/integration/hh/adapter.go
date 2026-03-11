@@ -23,6 +23,12 @@ type Adapter struct {
 func NewAdapter(cfg *config.Config, logger *slog.Logger) *Adapter {
 	httpClient := &http.Client{
 		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			MaxConnsPerHost:     100,
+			IdleConnTimeout:     90 * time.Second,
+		},
 	}
 
 	tokenManager := newTokenManager(cfg.HHAuth, logger)
