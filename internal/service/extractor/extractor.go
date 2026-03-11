@@ -43,15 +43,26 @@ func (e *Extractor) ExtractSkills(text string, whiteList map[string]int, maxNgra
 	words := strings.Fields(preparedText)
 
 	result := make(map[string]int)
+
+	var ngramBuilder strings.Builder
 	n := len(words)
 	for i := 0; i < n; i++ {
+		ngramBuilder.Reset()
+		ngramBuilder.WriteString(words[i])
+
 		for j := 1; j <= maxNgram && i+j <= n; j++ {
-			ngram := strings.Join(words[i:i+j], " ")
-			if strings.HasSuffix(ngram, ".") {
-				ngram = ngram[:len(ngram)-1]
+			if j > 1 {
+				ngramBuilder.WriteByte(' ')
+				ngramBuilder.WriteString(words[i+j-1])
 			}
-			if _, ok := whiteList[ngram]; ok {
-				result[ngram]++
+
+			check := ngramBuilder.String()
+
+			if strings.HasSuffix(check, ".") {
+				check = check[:len(check)-1]
+			}
+			if _, ok := whiteList[check]; ok {
+				result[check]++
 			}
 		}
 	}
