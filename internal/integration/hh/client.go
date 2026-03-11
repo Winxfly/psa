@@ -357,7 +357,12 @@ func (c *client) fetchDataVacancies(ctx context.Context, ids []string) ([]vacanc
 	}()
 
 	for v := range data {
-		result = append(result, v)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			result = append(result, v)
+		}
 	}
 
 	return result, nil
