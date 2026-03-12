@@ -22,7 +22,7 @@ func (c *Cache) SaveProfessionTrend(ctx context.Context, professionID uuid.UUID,
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	return c.client.Set(ctx, key, jsonData, c.ttl).Err()
+	return c.client.Set(ctx, key, jsonData, c.ttl/2).Err()
 }
 
 func (c *Cache) GetProfessionTrend(ctx context.Context, professionID uuid.UUID) (*domain.ProfessionTrend, error) {
