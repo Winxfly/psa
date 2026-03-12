@@ -48,6 +48,12 @@ type SkillsProvider interface {
 type CacheProvider interface {
 	SaveProfessionData(ctx context.Context, data *domain.ProfessionDetail) error
 	GetProfessionData(ctx context.Context, professionID uuid.UUID) (*domain.ProfessionDetail, error)
+
+	SaveProfessionsList(ctx context.Context, professions []domain.ActiveProfession) error
+	GetProfessionsList(ctx context.Context) ([]domain.ActiveProfession, error)
+
+	SaveProfessionTrend(ctx context.Context, professionID uuid.UUID, trend *domain.ProfessionTrend) error
+	GetProfessionTrend(ctx context.Context, professionID uuid.UUID) (*domain.ProfessionTrend, error)
 }
 
 type Provider struct {
@@ -81,6 +87,18 @@ func (p *Provider) ActiveProfessions(ctx context.Context) ([]domain.ActiveProfes
 	const op = "service.provider.ActiveProfessions"
 	log := loggerctx.FromContext(ctx).With("op", op)
 
+	if p.cache != nil {
+		cached, err := p.cache.GetProfessionsList(ctx)
+		if err != nil {
+			log.Warn("cache_get_failed", slogx.Err(err))
+		} else if cached != nil {
+			log.Info("cache_hit", "key", "professions_list")
+			return cached, nil
+		} else {
+			log.Info("cache_miss", "key", "professions")
+		}
+	}
+
 	professions, err := p.professionProvider.GetActiveProfessions(ctx)
 	if err != nil {
 		log.Error("get_active_professions_failed", slogx.Err(err))
@@ -94,6 +112,27 @@ func (p *Provider) ActiveProfessions(ctx context.Context) ([]domain.ActiveProfes
 			Name:         prof.Name,
 			VacancyQuery: prof.VacancyQuery,
 		}
+	}
+
+	if p.cache != nil {
+		go func(l *slog.Logger, professions []domain.ActiveProfession) {
+			defer func() {
+				if r := recover(); r != nil {
+					l.Error("cache_save_panic", "recover", r, "key", "professions_list")
+				}
+			}()
+
+			cacheCtx, cancel := context.WithTimeout(context.Background(), cacheSaveTimeout)
+			defer cancel()
+
+			cacheLog := l.With("async", "cache_save", "key", "professions_list")
+
+			if err := p.cache.SaveProfessionsList(cacheCtx, response); err != nil {
+				cacheLog.Error("cache_save_failed", slogx.Err(err))
+			} else {
+				cacheLog.Debug("cache_saved", "count", len(professions))
+			}
+		}(log, response)
 	}
 
 	log.Debug("active_professions_loaded", "count", len(response))
@@ -297,6 +336,18 @@ func (p *Provider) ProfessionTrend(ctx context.Context, professionID uuid.UUID) 
 	const op = "service.provider.ProfessionTrend"
 	log := loggerctx.FromContext(ctx).With("op", op)
 
+	if p.cache != nil {
+		cached, err := p.cache.GetProfessionTrend(ctx, professionID)
+		if err != nil {
+			log.Warn("cache_get_failed", "profession_id", professionID, slogx.Err(err))
+		} else if cached != nil {
+			log.Info("cache_hit", "profession_id", professionID)
+			return cached, nil
+		} else {
+			log.Info("cache_miss", "profession_id", professionID)
+		}
+	}
+
 	profession, err := p.professionProvider.GetProfessionByID(ctx, professionID)
 	if err != nil {
 		if errors.Is(err, domain.ErrProfessionNotFound) {
@@ -312,13 +363,36 @@ func (p *Provider) ProfessionTrend(ctx context.Context, professionID uuid.UUID) 
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	log.Debug("profession_trend_loaded", "profession_id", professionID, "points_count", len(points))
-
-	return &domain.ProfessionTrend{
+	trend := &domain.ProfessionTrend{
 		ProfessionID:   professionID,
 		ProfessionName: profession.Name,
 		Data:           points,
-	}, nil
+	}
+
+	if p.cache != nil {
+		go func(l *slog.Logger, profID uuid.UUID, t *domain.ProfessionTrend) {
+			defer func() {
+				if r := recover(); r != nil {
+					l.Error("cache_save_panic", "recover", r, "profession_id", profID)
+				}
+			}()
+
+			cacheCtx, cancel := context.WithTimeout(context.Background(), cacheSaveTimeout)
+			defer cancel()
+
+			cacheLog := l.With("async", "cache_save", "profession_id", profID)
+
+			if err := p.cache.SaveProfessionTrend(cacheCtx, profID, t); err != nil {
+				cacheLog.Error("cache_save_failed", slogx.Err(err))
+			} else {
+				cacheLog.Debug("cache_saved", "points_count", len(t.Data))
+			}
+		}(log, professionID, trend)
+	}
+
+	log.Debug("profession_trend_loaded", "profession_id", professionID, "points_count", len(points))
+
+	return trend, nil
 }
 
 func validateProfessionInput(profession domain.Profession) error {
