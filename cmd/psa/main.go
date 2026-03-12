@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 	"os"
+
 	"psa/internal/app"
 	"psa/internal/config"
 )

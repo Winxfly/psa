@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
 	"psa/internal/domain"
 	postgresql "psa/internal/repository/postgresql/generated"
 )

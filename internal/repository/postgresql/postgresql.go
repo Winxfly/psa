@@ -3,7 +3,9 @@ package postgresql
 import (
 	"context"
 	"fmt"
+
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"psa/internal/config"
 	postgresql "psa/internal/repository/postgresql/generated"
 )

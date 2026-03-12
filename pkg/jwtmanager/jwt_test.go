@@ -6,13 +6,15 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	"psa/pkg/jwtmanager"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
+	"psa/pkg/jwtmanager"
 )
 
 func setupManager(secret string, accessTTL, refreshTTL time.Duration) *jwtmanager.Manager {

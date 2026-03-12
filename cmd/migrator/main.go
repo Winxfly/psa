@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+
 	"psa/internal/config"
 
 	"github.com/golang-migrate/migrate/v4"

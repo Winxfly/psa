@@ -3,10 +3,12 @@ package postgresql
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
+
 	"psa/internal/domain"
 	postgresql "psa/internal/repository/postgresql/generated"
-	"time"
 )
 
 func (s *Storage) SaveStat(ctx context.Context, sessionID uuid.UUID, professionID uuid.UUID, vacancyCount int) error {
