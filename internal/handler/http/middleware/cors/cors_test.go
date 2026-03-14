@@ -85,10 +85,8 @@ func TestCORSMiddleware_OriginValidation(t *testing.T) {
 				if varyHeader != "Origin" {
 					t.Errorf("Expected Vary: Origin, got: %s", varyHeader)
 				}
-			} else {
-				if allowOrigin != "" {
-					t.Errorf("Expected no Allow-Origin header, got: %s", allowOrigin)
-				}
+			} else if allowOrigin != "" {
+				t.Errorf("Expected no Allow-Origin header, got: %s", allowOrigin)
 			}
 		})
 	}

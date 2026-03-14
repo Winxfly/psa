@@ -39,10 +39,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("cannot connect to database: %v", err)
 	}
-	defer pool.Close()
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
+		pool.Close()
 		log.Fatalf("cannot hash password: %v", err)
 	}
 
@@ -56,8 +56,11 @@ func main() {
 		ON CONFLICT (email) DO NOTHING;
 	`, email, hashedPasswordB64)
 	if err != nil {
+		pool.Close()
 		log.Fatalf("failed to insert admin: %v", err)
 	}
+
+	pool.Close()
 
 	log.Println("Admin creation process completed (may already exist)")
 }

@@ -95,7 +95,7 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 		tm.refreshFailed = true
 		return "", fmt.Errorf("%s: do request: %w", op, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		tm.refreshFailed = true

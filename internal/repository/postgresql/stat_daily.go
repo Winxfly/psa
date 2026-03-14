@@ -12,8 +12,6 @@ import (
 )
 
 func (s *Storage) SaveStatDaily(ctx context.Context, professionID uuid.UUID, vacancyCount int, scrapedAt time.Time) error {
-	const op = "repository.postgresql.stat_daily.SaveStatDaily"
-
 	_, err := s.Queries.InsertStatDaily(ctx, postgresql.InsertStatDailyParams{
 		ProfessionID: professionID,
 		VacancyCount: int32(vacancyCount),

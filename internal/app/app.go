@@ -41,7 +41,11 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("init redis: %w", err)
 	}
-	defer cache.Close()
+	defer func() {
+		if err := cache.Close(); err != nil {
+			log.Error("cache_close_failed", "error", err)
+		}
+	}()
 
 	// external services
 	hhClient := hh.NewAdapter(cfg, log)

@@ -89,12 +89,13 @@ func (p *Provider) ActiveProfessions(ctx context.Context) ([]domain.ActiveProfes
 
 	if p.cache != nil {
 		cached, err := p.cache.GetProfessionsList(ctx)
-		if err != nil {
+		switch {
+		case err != nil:
 			log.Warn("cache_get_failed", slogx.Err(err))
-		} else if cached != nil {
+		case cached != nil:
 			log.Info("cache_hit", "key", "professions_list")
 			return cached, nil
-		} else {
+		default:
 			log.Info("cache_miss", "key", "professions")
 		}
 	}
@@ -236,20 +237,22 @@ func (p *Provider) ProfessionSkills(ctx context.Context, professionID uuid.UUID)
 
 	if p.cache != nil {
 		cached, err := p.cache.GetProfessionData(ctx, professionID)
-		if err != nil {
+		switch {
+		case err != nil:
 			log.Warn("cache_get_failed", "profession_id", professionID, slogx.Err(err))
-		} else if cached != nil {
+		case cached != nil:
 			log.Info("cache_hit", "profession_id", professionID)
 			return cached, nil
-		} else {
+		default:
 			log.Info("cache_miss", "profession_id", professionID)
 		}
 	}
 
 	profession, err := p.professionProvider.GetProfessionByID(ctx, professionID)
-	if errors.Is(err, domain.ErrProfessionNotFound) {
+	switch {
+	case errors.Is(err, domain.ErrProfessionNotFound):
 		return nil, domain.ErrProfessionNotFound
-	} else if err != nil {
+	case err != nil:
 		log.Error("get_profession_failed", "profession_id", professionID, slogx.Err(err))
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -338,12 +341,13 @@ func (p *Provider) ProfessionTrend(ctx context.Context, professionID uuid.UUID) 
 
 	if p.cache != nil {
 		cached, err := p.cache.GetProfessionTrend(ctx, professionID)
-		if err != nil {
+		switch {
+		case err != nil:
 			log.Warn("cache_get_failed", "profession_id", professionID, slogx.Err(err))
-		} else if cached != nil {
+		case cached != nil:
 			log.Info("cache_hit", "profession_id", professionID)
 			return cached, nil
-		} else {
+		default:
 			log.Info("cache_miss", "profession_id", professionID)
 		}
 	}

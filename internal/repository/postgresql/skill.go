@@ -11,8 +11,6 @@ import (
 )
 
 func (s *Storage) SaveFormalSkills(ctx context.Context, sessionID uuid.UUID, professionID uuid.UUID, skills map[string]int) error {
-	const op = "repository.postgresql.skill.SaveFormalSkills"
-
 	params := make([]postgresql.InsertFormalSkillsParams, 0, len(skills))
 	for skill, count := range skills {
 		params = append(params, postgresql.InsertFormalSkillsParams{
@@ -29,8 +27,6 @@ func (s *Storage) SaveFormalSkills(ctx context.Context, sessionID uuid.UUID, pro
 }
 
 func (s *Storage) SaveExtractedSkills(ctx context.Context, sessionID uuid.UUID, professionID uuid.UUID, skills map[string]int) error {
-	const op = "repository.postgresql.skill.SaveExtractedSkills"
-
 	params := make([]postgresql.InsertExtractedSkillsParams, 0, len(skills))
 	for skill, count := range skills {
 		params = append(params, postgresql.InsertExtractedSkillsParams{

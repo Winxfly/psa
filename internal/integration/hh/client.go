@@ -137,7 +137,7 @@ func (c *client) doRequestWithRetry(ctx context.Context, req *http.Request) (*ht
 		}
 
 		if isRetryable(resp.StatusCode) {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 
 			if attempt < c.cfg.HHRetry.MaxAttempts-1 {
 				wait := c.calculateWait(attempt)
@@ -158,7 +158,7 @@ func (c *client) doRequestWithRetry(ctx context.Context, req *http.Request) (*ht
 			}
 		}
 
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("%s: unexpected status %d", op, resp.StatusCode)
 	}
 
@@ -185,7 +185,7 @@ func (c *client) fetchMeta(ctx context.Context, query, area string) (metadata, e
 	if err != nil {
 		return metadata{}, fmt.Errorf("%s: %w", op, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var meta metadata
 	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
@@ -222,7 +222,7 @@ func (c *client) fetchIDsFromPage(ctx context.Context, page int, query, area str
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var ids vacancyIDResponse
 	if err := json.NewDecoder(resp.Body).Decode(&ids); err != nil {
@@ -298,7 +298,7 @@ func (c *client) fetchDataVacancy(ctx context.Context, id string) (vacancyRespon
 	if err != nil {
 		return vacancyResponse{}, fmt.Errorf("%s: %w", op, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var data vacancyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {

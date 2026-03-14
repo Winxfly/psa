@@ -109,10 +109,10 @@ func TestJWTManager_TokenTimestamps(t *testing.T) {
 	claims, err := manager.ParseToken(token)
 	require.NoError(t, err)
 
-	require.True(t, claims.IssuedAt.Time.After(before.Add(-time.Second)) || claims.IssuedAt.Time.Equal(before))
-	require.True(t, claims.IssuedAt.Time.Before(after.Add(time.Second)) || claims.IssuedAt.Time.Equal(after))
+	require.True(t, claims.IssuedAt.After(before.Add(-time.Second)) || claims.IssuedAt.Equal(before))
+	require.True(t, claims.IssuedAt.Before(after.Add(time.Second)) || claims.IssuedAt.Equal(after))
 
-	expectedExpiry := claims.IssuedAt.Time.Add(time.Minute * 15)
+	expectedExpiry := claims.IssuedAt.Add(time.Minute * 15)
 	require.WithinDuration(t, expectedExpiry, claims.ExpiresAt.Time, time.Second)
 }
 

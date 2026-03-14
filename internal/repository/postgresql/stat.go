@@ -12,8 +12,6 @@ import (
 )
 
 func (s *Storage) SaveStat(ctx context.Context, sessionID uuid.UUID, professionID uuid.UUID, vacancyCount int) error {
-	const op = "repository.postgresql.stat.SaveStat"
-
 	_, err := s.Queries.InsertStat(ctx, postgresql.InsertStatParams{
 		ProfessionID: professionID,
 		VacancyCount: int32(vacancyCount),

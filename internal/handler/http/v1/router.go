@@ -56,5 +56,5 @@ func (r *Router) RegisterAdminRoutes(mux *http.ServeMux) {
 
 func (r *Router) health(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+	_, _ = w.Write([]byte("ok"))
 }

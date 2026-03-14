@@ -56,11 +56,7 @@ func (e *Extractor) ExtractSkills(text string, whiteList map[string]int, maxNgra
 				ngramBuilder.WriteString(words[i+j-1])
 			}
 
-			check := ngramBuilder.String()
-
-			if strings.HasSuffix(check, ".") {
-				check = check[:len(check)-1]
-			}
+			check := strings.TrimSuffix(ngramBuilder.String(), ".")
 			if _, ok := whiteList[check]; ok {
 				result[check]++
 			}
