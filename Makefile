@@ -1,3 +1,9 @@
+fmt:
+	go fmt ./...
+
+test:
+	go test ./...
+
 # Запуск миграций, но должен быть поднят postgres
 migrate-up:
 	docker compose run --rm \
@@ -79,3 +85,26 @@ redis-up:
 
 redis-down:
 	docker compose stop redis
+
+GOLANGCI_LINT_VERSION=v2.11.3
+
+lint:
+	docker run --rm \
+		-v $(PWD):/app \
+		-w /app \
+		golangci/golangci-lint:$(GOLANGCI_LINT_VERSION) \
+		golangci-lint run
+
+lint-fix:
+	docker run --rm \
+		-v $(PWD):/app \
+		-w /app \
+		golangci/golangci-lint:$(GOLANGCI_LINT_VERSION) \
+		golangci-lint run --fix
+
+lint-fmt:
+	docker run --rm \
+		-v $(PWD):/app \
+		-w /app \
+		golangci/golangci-lint:$(GOLANGCI_LINT_VERSION) \
+		golangci-lint fmt
