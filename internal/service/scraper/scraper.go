@@ -84,8 +84,18 @@ func New(
 	}
 }
 
-func (s *Scraper) ProcessActiveProfessions(ctx context.Context, saveToDB bool) error {
-	const op = "service.scraper.ProcessActiveProfessions"
+// ProcessActiveProfessionsArchive — full scraping (all to db)
+func (s *Scraper) ProcessActiveProfessionsArchive(ctx context.Context) error {
+	return s.processActiveProfessions(ctx, true)
+}
+
+// ProcessActiveProfessionsDaily — daily scraping (stat_daily to db, other to cache)
+func (s *Scraper) ProcessActiveProfessionsDaily(ctx context.Context) error {
+	return s.processActiveProfessions(ctx, false)
+}
+
+func (s *Scraper) processActiveProfessions(ctx context.Context, saveToDB bool) error {
+	const op = "service.scraper.processActiveProfessions"
 	log := loggerctx.FromContext(ctx).With("op", op)
 
 	start := time.Now()

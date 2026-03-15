@@ -16,7 +16,8 @@ import (
 const jobTimeout = 3 * time.Hour
 
 type ScrapingProvider interface {
-	ProcessActiveProfessions(ctx context.Context, saveToDB bool) error
+	ProcessActiveProfessionsArchive(ctx context.Context) error
+	ProcessActiveProfessionsDaily(ctx context.Context) error
 }
 
 type Cron struct {
@@ -63,7 +64,7 @@ func (c *Cron) Start(ctx context.Context) error {
 	_, err := c.scheduler.NewJob(
 		gocron.CronJob("0 3 15 * *", false),
 		gocron.NewTask(func() {
-			c.runScrapingJob(ctx, true, "monthly")
+			c.runScrapingJobArchive(ctx, "monthly")
 		}),
 		gocron.WithName("monthly_scraping"),
 	)
@@ -77,7 +78,7 @@ func (c *Cron) Start(ctx context.Context) error {
 	_, err = c.scheduler.NewJob(
 		gocron.CronJob("0 3 1-14,16-31 * *", false),
 		gocron.NewTask(func() {
-			c.runScrapingJob(ctx, false, "daily")
+			c.runScrapingJobDaily(ctx, "daily")
 		}),
 		gocron.WithName("daily_scraping"),
 	)
@@ -122,8 +123,8 @@ func (c *Cron) Stop(ctx context.Context) error {
 	}
 }
 
-func (c *Cron) runScrapingJob(ctx context.Context, saveToDB bool, jobType string) {
-	const op = "service.cron.runScrapingJob"
+func (c *Cron) runScrapingJobArchive(ctx context.Context, jobType string) {
+	const op = "service.cron.runScrapingJobArchive"
 	runID := uuid.New().String()
 	log := c.log.With("op", op, "job", jobType, "run_id", runID)
 
@@ -133,7 +134,26 @@ func (c *Cron) runScrapingJob(ctx context.Context, saveToDB bool, jobType string
 	ctxJob, cancel := context.WithTimeout(ctxWithLogger, jobTimeout)
 	defer cancel()
 
-	if err := c.scraper.ProcessActiveProfessions(ctxJob, saveToDB); err != nil {
+	if err := c.scraper.ProcessActiveProfessionsArchive(ctxJob); err != nil {
+		log.Error("job_failed", slogx.Err(err))
+		return
+	}
+
+	log.Info("job_completed")
+}
+
+func (c *Cron) runScrapingJobDaily(ctx context.Context, jobType string) {
+	const op = "service.cron.runScrapingJobDaily"
+	runID := uuid.New().String()
+	log := c.log.With("op", op, "job", jobType, "run_id", runID)
+
+	log.Info("job_started")
+
+	ctxWithLogger := loggerctx.WithLogger(ctx, log)
+	ctxJob, cancel := context.WithTimeout(ctxWithLogger, jobTimeout)
+	defer cancel()
+
+	if err := c.scraper.ProcessActiveProfessionsDaily(ctxJob); err != nil {
 		log.Error("job_failed", slogx.Err(err))
 		return
 	}

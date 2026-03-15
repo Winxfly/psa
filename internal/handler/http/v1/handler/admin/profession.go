@@ -21,7 +21,8 @@ type ProfessionAdminAccesser interface {
 }
 
 type ScrapingProvider interface {
-	ProcessActiveProfessions(ctx context.Context, saveToDB bool) error
+	ProcessActiveProfessionsArchive(ctx context.Context) error
+	ProcessActiveProfessionsDaily(ctx context.Context) error
 }
 
 type ProfessionAdminHandler struct {
@@ -148,7 +149,7 @@ func (h *ProfessionAdminHandler) TriggerScraping(w http.ResponseWriter, r *http.
 	go func() {
 		ctx := loggerctx.WithLogger(context.Background(), log)
 		ctxLog := loggerctx.FromContext(ctx)
-		if err := h.scraping.ProcessActiveProfessions(ctx, true); err != nil {
+		if err := h.scraping.ProcessActiveProfessionsArchive(ctx); err != nil {
 			ctxLog.Error("scraping_process_failed", slogx.Err(err))
 		} else {
 			ctxLog.Info("scraping_completed")
