@@ -13,10 +13,11 @@ import (
 )
 
 const getStatDailyByProfessionID = `-- name: GetStatDailyByProfessionID :many
-SELECT profession_id, vacancy_count, scraped_at
+SELECT DISTINCT ON (DATE(scraped_at))
+    profession_id, vacancy_count, scraped_at
 FROM stat_daily
 WHERE profession_id = $1
-ORDER BY scraped_at
+ORDER BY DATE(scraped_at), scraped_at DESC
 `
 
 type GetStatDailyByProfessionIDRow struct {
