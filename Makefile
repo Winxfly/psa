@@ -4,6 +4,20 @@ fmt:
 test:
 	go test ./...
 
+test-integration:
+	go test -tags=integration -v -race ./...
+
+test-integration-auth:
+	go test -tags=integration -v -race ./internal/service/auth/...
+
+test-integration-repo:
+	go test -tags=integration -v -race ./internal/repository/postgresql/...
+
+test-coverage:
+	go test -race -coverprofile=coverage.out -covermode=atomic ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
+
 # Запуск миграций, но должен быть поднят postgres
 migrate-up:
 	docker compose run --rm \
