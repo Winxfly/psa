@@ -10,3 +10,20 @@
 .env.local
 .env.production
 .env.development
+
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+psa
+bin/
+tmp/
+
+# Test coverage
+coverage.out
+coverage.html
+
+# Docker
+*.log
