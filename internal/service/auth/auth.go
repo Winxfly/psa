@@ -173,6 +173,11 @@ func (a *Auth) RefreshTokens(ctx context.Context, refreshToken string) (*domain.
 	}
 
 	newHashedToken := a.jwtProvider.HashToken(newRefreshToken)
+
+	if err := a.refreshTokenProvider.DeleteRefreshToken(ctx, user.ID, hashedToken); err != nil {
+		log.Warn("delete_old_token_failed", "user_id", user.ID, slogx.Err(err))
+	}
+
 	preparedRefreshToken := &domain.RefreshToken{
 		UserID:      user.ID,
 		HashedToken: newHashedToken,
@@ -182,10 +187,6 @@ func (a *Auth) RefreshTokens(ctx context.Context, refreshToken string) (*domain.
 	if err := a.refreshTokenProvider.CreateRefreshToken(ctx, preparedRefreshToken); err != nil {
 		log.Error("create_refresh_token_failed", "user_id", user.ID, slogx.Err(err))
 		return nil, fmt.Errorf("%s: create refresh token: %w", op, err)
-	}
-
-	if err := a.refreshTokenProvider.DeleteRefreshToken(ctx, user.ID, hashedToken); err != nil {
-		log.Warn("delete_old_token_failed", "user_id", user.ID, slogx.Err(err))
 	}
 
 	log.Info("refresh_tokens_success", "user_id", user.ID)
