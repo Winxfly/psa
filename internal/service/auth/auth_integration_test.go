@@ -19,6 +19,8 @@ import (
 	"psa/tests/containers"
 )
 
+const migrationsPath = "migrations"
+
 // createTestUser создаёт тестового пользователя в БД.
 // Возвращает ID пользователя для последующего использования в тестах.
 func createTestUser(t *testing.T, db *postgresql.Storage, email, password string, isAdmin bool) uuid.UUID {
@@ -76,7 +78,7 @@ func TestAuth_Signin_Success(t *testing.T) {
 	defer pg.Container.Terminate(ctx)
 
 	// Запуск миграций
-	err = containers.RunMigrations(pg.DSN, "migrations")
+	err = containers.RunMigrations(pg.DSN, migrationsPath)
 	require.NoError(t, err)
 
 	// Создание репозитория
@@ -118,7 +120,7 @@ func TestAuth_Signin_InvalidCredentials(t *testing.T) {
 	defer pg.Container.Terminate(ctx)
 
 	// Запуск миграций
-	err = containers.RunMigrations(pg.DSN, "migrations")
+	err = containers.RunMigrations(pg.DSN, migrationsPath)
 	require.NoError(t, err)
 
 	// Создание репозитория
@@ -159,7 +161,7 @@ func TestAuth_Signin_UserNotFound(t *testing.T) {
 	defer pg.Container.Terminate(ctx)
 
 	// Запуск миграций
-	err = containers.RunMigrations(pg.DSN, "migrations")
+	err = containers.RunMigrations(pg.DSN, migrationsPath)
 	require.NoError(t, err)
 
 	// Создание репозитория
@@ -197,7 +199,7 @@ func TestAuth_RefreshTokens_Success(t *testing.T) {
 	defer pg.Container.Terminate(ctx)
 
 	// Запуск миграций
-	err = containers.RunMigrations(pg.DSN, "migrations")
+	err = containers.RunMigrations(pg.DSN, migrationsPath)
 	require.NoError(t, err)
 
 	// Создание репозитория
@@ -224,9 +226,6 @@ func TestAuth_RefreshTokens_Success(t *testing.T) {
 	tokens, err := authUC.Signin(ctx, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	// Небольшая задержка чтобы время в токенах отличалось
-	time.Sleep(1100 * time.Millisecond)
-
 	// Тест
 	newTokens, err := authUC.RefreshTokens(ctx, tokens.RefreshToken)
 
@@ -249,7 +248,7 @@ func TestAuth_RefreshTokens_InvalidToken(t *testing.T) {
 	defer pg.Container.Terminate(ctx)
 
 	// Запуск миграций
-	err = containers.RunMigrations(pg.DSN, "migrations")
+	err = containers.RunMigrations(pg.DSN, migrationsPath)
 	require.NoError(t, err)
 
 	// Создание репозитория
@@ -286,7 +285,7 @@ func TestAuth_Logout_Success(t *testing.T) {
 	defer pg.Container.Terminate(ctx)
 
 	// Запуск миграций
-	err = containers.RunMigrations(pg.DSN, "migrations")
+	err = containers.RunMigrations(pg.DSN, migrationsPath)
 	require.NoError(t, err)
 
 	// Создание репозитория
@@ -333,7 +332,7 @@ func TestAuth_ValidateToken_Success(t *testing.T) {
 	defer pg.Container.Terminate(ctx)
 
 	// Запуск миграций
-	err = containers.RunMigrations(pg.DSN, "migrations")
+	err = containers.RunMigrations(pg.DSN, migrationsPath)
 	require.NoError(t, err)
 
 	// Создание репозитория
@@ -378,7 +377,7 @@ func TestAuth_ValidateToken_InvalidToken(t *testing.T) {
 	defer pg.Container.Terminate(ctx)
 
 	// Запуск миграций
-	err = containers.RunMigrations(pg.DSN, "migrations")
+	err = containers.RunMigrations(pg.DSN, migrationsPath)
 	require.NoError(t, err)
 
 	// Создание репозитория
