@@ -46,6 +46,7 @@ func (j *Manager) GenerateAccessToken(userID uuid.UUID, role string) (string, er
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    j.issuer,
 			Subject:   userID.String(),
+			ID:        uuid.New().String(),
 		},
 	}
 
@@ -62,6 +63,7 @@ func (j *Manager) GenerateRefreshToken(userID uuid.UUID) (string, error) {
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    j.issuer,
 			Subject:   userID.String(),
+			ID:        uuid.New().String(),
 		},
 	}
 
