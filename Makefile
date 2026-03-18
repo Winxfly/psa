@@ -100,6 +100,7 @@ redis-up:
 redis-down:
 	docker compose stop redis
 
+# Линтер
 GOLANGCI_LINT_VERSION=v2.11.3
 
 lint:
@@ -122,3 +123,11 @@ lint-fmt:
 		-w /app \
 		golangci/golangci-lint:$(GOLANGCI_LINT_VERSION) \
 		golangci-lint fmt
+
+# Генерация моков (все пакеты из .mockery.yaml)
+mocks-generate:
+	docker run --rm \
+		-v $(PWD):/app \
+		-w /app \
+		vektra/mockery:v3.7.0 \
+		--config=.mockery.yaml

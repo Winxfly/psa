@@ -1,0 +1,30 @@
+all: false
+dir: ""
+filename: "{{.InterfaceName}}.go"
+structname: "Mock{{.InterfaceName}}"
+pkgname: mocks
+template: testify
+
+packages:
+  # Auth service
+  psa/internal/service/auth:
+    interfaces:
+      UserProvider:
+      RefreshTokenProvider:
+      JWTProvider:
+    config:
+      dir: internal/service/auth/mocks
+
+  # Scraper service
+  psa/internal/service/scraper:
+    interfaces:
+      ProfessionProvider:
+      SessionProvider:
+      SkillsProvider:
+      StatProvider:
+      DailyStatProvider:
+      SupplierPort:
+      Extractor:
+      CacheProvider:
+    config:
+      dir: internal/service/scraper/mocks
