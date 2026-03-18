@@ -28,3 +28,15 @@ packages:
       CacheProvider:
     config:
       dir: internal/service/scraper/mocks
+
+  # Provider service
+  psa/internal/service/provider:
+    interfaces:
+      ProfessionProvider:
+      SessionProvider:
+      StatProvider:
+      SkillsProvider:
+      CacheProvider:
+      DailyStatProvider:
+    config:
+      dir: internal/service/provider/mocks
