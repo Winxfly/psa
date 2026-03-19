@@ -40,3 +40,10 @@ packages:
       DailyStatProvider:
     config:
       dir: internal/service/provider/mocks
+
+  # Cron service
+  psa/internal/service/cron:
+    interfaces:
+      ScrapingProvider:
+    config:
+      dir: internal/service/cron/mocks

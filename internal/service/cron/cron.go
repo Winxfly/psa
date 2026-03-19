@@ -13,7 +13,7 @@ import (
 	"psa/pkg/logger/slogx"
 )
 
-const jobTimeout = 3 * time.Hour
+const jobTimeout = 1 * time.Hour
 
 type ScrapingProvider interface {
 	ProcessActiveProfessionsArchive(ctx context.Context) error
