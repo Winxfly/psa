@@ -68,6 +68,33 @@ func TestExtractSkills(t *testing.T) {
 			maxNgram:  3,
 			expected:  map[string]int{"go": 1, "python": 1, "java": 1},
 		},
+		{
+			name:      "multiple occurrences",
+			text:      "go go python go",
+			whiteList: map[string]int{"go": 1, "python": 1},
+			maxNgram:  1,
+			expected:  map[string]int{"go": 3, "python": 1},
+		},
+		{
+			name:      "no matches",
+			text:      "java rust",
+			whiteList: map[string]int{"go": 1},
+			maxNgram:  2,
+			expected:  map[string]int{},
+		},
+		{
+			name: "overlapping ngrams",
+			text: "senior software engineer",
+			whiteList: map[string]int{
+				"software engineer": 1,
+				"senior software":   1,
+			},
+			maxNgram: 3,
+			expected: map[string]int{
+				"software engineer": 1,
+				"senior software":   1,
+			},
+		},
 	}
 
 	for _, tt := range tests {
