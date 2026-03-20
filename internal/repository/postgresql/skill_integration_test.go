@@ -1,14 +1,11 @@
 //go:build integration
 
 // Интеграционные тесты для skill репозитория (skill_formal и skill_extracted).
-// Используется testcontainers для изолированного PostgreSQL.
-// Один контейнер на все тесты пакета, инициализация через TestMain.
+// Каждый тест поднимает свой контейнер для полной изоляции.
 package postgresql_test
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -23,62 +20,52 @@ import (
 
 const migrationsPathSkill = "migrations"
 
-var (
-	testStorageSkill *postgresql.Storage
-	pgContainer      *containers.PostgresContainer
-)
+func mustParsePortForSkill(t *testing.T, portStr string) int {
+	t.Helper()
 
-func TestMain(m *testing.M) {
-	ctx := context.Background()
+	port, err := strconv.Atoi(portStr)
+	require.NoError(t, err)
 
-	// Запускаем контейнер
-	var err error
-	pgContainer, err = containers.StartPostgres(ctx)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to start postgres container: %v\n", err)
-		os.Exit(1)
-	}
+	return port
+}
 
-	// Применяем миграции
-	if err := containers.RunMigrations(pgContainer.DSN, migrationsPathSkill); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to run migrations: %v\n", err)
-		_ = pgContainer.Container.Terminate(ctx)
-		os.Exit(1)
-	}
+func createStorageForSkill(t *testing.T, dsn string, host string, port string) *postgresql.Storage {
+	t.Helper()
 
-	// Создаём storage
 	cfg := config.StoragePath{
 		Username: "test",
 		Password: "test",
-		Host:     pgContainer.Host,
-		Port:     mustParsePortForSkill(pgContainer.Port),
+		Host:     host,
+		Port:     mustParsePortForSkill(t, port),
 		Database: "test",
 		SSLMode:  "disable",
 	}
 
-	testStorageSkill, err = postgresql.New(cfg)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create storage: %v\n", err)
-		_ = pgContainer.Container.Terminate(ctx)
-		os.Exit(1)
-	}
+	storage, err := postgresql.New(cfg)
+	require.NoError(t, err)
 
-	// Запускаем тесты
-	code := m.Run()
+	t.Cleanup(func() {
+		storage.Close()
+	})
 
-	// Очищаем ресурсы
-	testStorageSkill.Close()
-	_ = pgContainer.Container.Terminate(ctx)
-
-	os.Exit(code)
+	return storage
 }
 
-func mustParsePortForSkill(portStr string) int {
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		panic(fmt.Sprintf("Invalid port %q: %v", portStr, err))
-	}
-	return port
+func setupTestDBSkill(t *testing.T) *postgresql.Storage {
+	t.Helper()
+
+	ctx := context.Background()
+	pg, err := containers.StartPostgres(ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_ = pg.Container.Terminate(ctx)
+	})
+
+	err = containers.RunMigrations(pg.DSN, migrationsPathSkill)
+	require.NoError(t, err)
+
+	return createStorageForSkill(t, pg.DSN, pg.Host, pg.Port)
 }
 
 func cleanSkillTables(ctx context.Context, t *testing.T, storage *postgresql.Storage) {
@@ -114,11 +101,6 @@ func createScrapingSessionSkill(ctx context.Context, t *testing.T, storage *post
 	require.NoError(t, err)
 
 	return id
-}
-
-func setupTestDBSkill(t *testing.T) *postgresql.Storage {
-	t.Helper()
-	return testStorageSkill
 }
 
 func TestSkillRepository(t *testing.T) {

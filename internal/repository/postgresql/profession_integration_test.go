@@ -1,59 +1,84 @@
 //go:build integration
 
+// Интеграционные тесты для profession репозитория.
+// Каждый тест поднимает свой контейнер для полной изоляции.
 package postgresql_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"psa/internal/config"
 	"psa/internal/domain"
 	"psa/internal/repository/postgresql"
 	"psa/tests/containers"
 )
 
-const migrationsPath = "migrations"
+const migrationsPathProfession = "migrations"
 
-// setupTestDB поднимает БД один раз на все тесты в пакете
-var (
-	testStorage *postgresql.Storage
-	testCtx     = context.Background()
-)
-
-func setupTestDB(t *testing.T) *postgresql.Storage {
+func mustParsePortForProfession(t *testing.T, portStr string) int {
 	t.Helper()
 
-	if testStorage != nil {
-		return testStorage
+	port, err := strconv.Atoi(portStr)
+	require.NoError(t, err)
+
+	return port
+}
+
+func createStorageForProfession(t *testing.T, dsn string, host string, port string) *postgresql.Storage {
+	t.Helper()
+
+	cfg := config.StoragePath{
+		Username: "test",
+		Password: "test",
+		Host:     host,
+		Port:     mustParsePortForProfession(t, port),
+		Database: "test",
+		SSLMode:  "disable",
 	}
 
-	pg, err := containers.StartPostgres(testCtx)
+	storage, err := postgresql.New(cfg)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		_ = pg.Container.Terminate(testCtx)
+		storage.Close()
 	})
 
-	err = containers.RunMigrations(pg.DSN, migrationsPath)
-	require.NoError(t, err)
-
-	testStorage = createStorage(t, pg.DSN, pg.Host, pg.Port)
-	return testStorage
+	return storage
 }
 
-func cleanProfessionTable(t *testing.T, storage *postgresql.Storage) {
+func setupTestDBProfession(t *testing.T) *postgresql.Storage {
 	t.Helper()
-	_, err := storage.Pool.Exec(testCtx, `TRUNCATE profession RESTART IDENTITY CASCADE`)
+
+	ctx := context.Background()
+	pg, err := containers.StartPostgres(ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_ = pg.Container.Terminate(ctx)
+	})
+
+	err = containers.RunMigrations(pg.DSN, migrationsPathProfession)
+	require.NoError(t, err)
+
+	return createStorageForProfession(t, pg.DSN, pg.Host, pg.Port)
+}
+
+func cleanProfessionTable(ctx context.Context, t *testing.T, storage *postgresql.Storage) {
+	t.Helper()
+	_, err := storage.Pool.Exec(ctx, `TRUNCATE profession RESTART IDENTITY CASCADE`)
 	require.NoError(t, err)
 }
 
-func insertProfession(t *testing.T, storage *postgresql.Storage, p domain.Profession) uuid.UUID {
+func insertProfession(ctx context.Context, t *testing.T, storage *postgresql.Storage, p domain.Profession) uuid.UUID {
 	t.Helper()
 
 	id := uuid.New()
-	_, err := storage.Pool.Exec(testCtx, `
+	_, err := storage.Pool.Exec(ctx, `
 		INSERT INTO profession (id, name, vacancy_query, is_active)
 		VALUES ($1, $2, $3, $4)
 	`, id, p.Name, p.VacancyQuery, p.IsActive)
@@ -63,17 +88,18 @@ func insertProfession(t *testing.T, storage *postgresql.Storage, p domain.Profes
 }
 
 func TestProfessionRepository(t *testing.T) {
-	storage := setupTestDB(t)
+	ctx := context.Background()
+	storage := setupTestDBProfession(t)
 
 	t.Run("GetActiveProfessions_Success", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Создание тестовых профессий с уникальными именами
 		professionID1 := uuid.New()
 		professionID2 := uuid.New()
-		_, err := storage.Pool.Exec(testCtx, `
+		_, err := storage.Pool.Exec(ctx, `
 			INSERT INTO profession (id, name, vacancy_query, is_active)
-			VALUES 
+			VALUES
 				($1, $2, $3, true),
 				($4, $5, $6, true),
 				($7, $8, $9, false)
@@ -85,7 +111,7 @@ func TestProfessionRepository(t *testing.T) {
 		require.NoError(t, err)
 
 		// Тест
-		professions, err := storage.GetActiveProfessions(testCtx)
+		professions, err := storage.GetActiveProfessions(ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -98,10 +124,10 @@ func TestProfessionRepository(t *testing.T) {
 	})
 
 	t.Run("GetActiveProfessions_Empty", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Тест (нет профессий)
-		professions, err := storage.GetActiveProfessions(testCtx)
+		professions, err := storage.GetActiveProfessions(ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -109,12 +135,12 @@ func TestProfessionRepository(t *testing.T) {
 	})
 
 	t.Run("GetAllProfessions_Success", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Создание тестовых профессий с уникальными именами
-		_, err := storage.Pool.Exec(testCtx, `
+		_, err := storage.Pool.Exec(ctx, `
 			INSERT INTO profession (id, name, vacancy_query, is_active)
-			VALUES 
+			VALUES
 				($1, $2, $3, true),
 				($4, $5, $6, false)
 		`,
@@ -124,7 +150,7 @@ func TestProfessionRepository(t *testing.T) {
 		require.NoError(t, err)
 
 		// Тест
-		professions, err := storage.GetAllProfessions(testCtx)
+		professions, err := storage.GetAllProfessions(ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -137,18 +163,18 @@ func TestProfessionRepository(t *testing.T) {
 	})
 
 	t.Run("GetProfessionByID_Success", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Создание тестовой профессии с уникальным именем
 		professionID := uuid.New()
-		_, err := storage.Pool.Exec(testCtx, `
+		_, err := storage.Pool.Exec(ctx, `
 			INSERT INTO profession (id, name, vacancy_query, is_active)
 			VALUES ($1, $2, $3, true)
 		`, professionID, "Test Get By ID Go Developer #3", "go developer test 3")
 		require.NoError(t, err)
 
 		// Тест
-		profession, err := storage.GetProfessionByID(testCtx, professionID)
+		profession, err := storage.GetProfessionByID(ctx, professionID)
 
 		// Assert
 		require.NoError(t, err)
@@ -159,11 +185,11 @@ func TestProfessionRepository(t *testing.T) {
 	})
 
 	t.Run("GetProfessionByID_NotFound", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Тест (несуществующий ID)
 		nonExistentID := uuid.New()
-		profession, err := storage.GetProfessionByID(testCtx, nonExistentID)
+		profession, err := storage.GetProfessionByID(ctx, nonExistentID)
 
 		// Assert
 		require.Error(t, err)
@@ -172,18 +198,18 @@ func TestProfessionRepository(t *testing.T) {
 	})
 
 	t.Run("GetProfessionByName_Success", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Создание тестовой профессии с уникальным именем
 		professionID := uuid.New()
-		_, err := storage.Pool.Exec(testCtx, `
+		_, err := storage.Pool.Exec(ctx, `
 			INSERT INTO profession (id, name, vacancy_query, is_active)
 			VALUES ($1, $2, $3, true)
 		`, professionID, "Test Get By Name Go Developer #4", "go developer test 4")
 		require.NoError(t, err)
 
 		// Тест
-		profession, err := storage.GetProfessionByName(testCtx, "Test Get By Name Go Developer #4")
+		profession, err := storage.GetProfessionByName(ctx, "Test Get By Name Go Developer #4")
 
 		// Assert
 		require.NoError(t, err)
@@ -193,10 +219,10 @@ func TestProfessionRepository(t *testing.T) {
 	})
 
 	t.Run("GetProfessionByName_NotFound", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Тест (несуществующее имя)
-		profession, err := storage.GetProfessionByName(testCtx, "Nonexistent Profession")
+		profession, err := storage.GetProfessionByName(ctx, "Nonexistent Profession")
 
 		// Assert
 		require.Error(t, err)
@@ -205,7 +231,7 @@ func TestProfessionRepository(t *testing.T) {
 	})
 
 	t.Run("AddProfession_Success", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Тест - добавляем профессию с уникальным именем
 		profession := domain.Profession{
@@ -214,21 +240,21 @@ func TestProfessionRepository(t *testing.T) {
 			IsActive:     true,
 		}
 
-		professionID, err := storage.AddProfession(testCtx, profession)
+		professionID, err := storage.AddProfession(ctx, profession)
 
 		// Assert
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, professionID)
 
 		// Проверяем что профессия действительно создана
-		created, err := storage.GetProfessionByID(testCtx, professionID)
+		created, err := storage.GetProfessionByID(ctx, professionID)
 		require.NoError(t, err)
 		require.Equal(t, profession.Name, created.Name)
 		require.Equal(t, profession.VacancyQuery, created.VacancyQuery)
 	})
 
 	t.Run("AddProfession_AlreadyExists", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Создание первой профессии с уникальным именем
 		profession := domain.Profession{
@@ -237,10 +263,10 @@ func TestProfessionRepository(t *testing.T) {
 			IsActive:     true,
 		}
 
-		insertProfession(t, storage, profession)
+		insertProfession(ctx, t, storage, profession)
 
 		// Тест - попытка добавить такую же профессию (по имени)
-		professionID, err := storage.AddProfession(testCtx, profession)
+		professionID, err := storage.AddProfession(ctx, profession)
 
 		// Assert
 		require.Error(t, err)
@@ -249,7 +275,7 @@ func TestProfessionRepository(t *testing.T) {
 	})
 
 	t.Run("UpdateProfession_Success", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Создание тестовой профессии с уникальным именем
 		profession := domain.Profession{
@@ -257,7 +283,7 @@ func TestProfessionRepository(t *testing.T) {
 			VacancyQuery: "go developer test 7",
 			IsActive:     true,
 		}
-		professionID := insertProfession(t, storage, profession)
+		professionID := insertProfession(ctx, t, storage, profession)
 
 		// Тест - обновление
 		updatedProfession := domain.Profession{
@@ -267,13 +293,13 @@ func TestProfessionRepository(t *testing.T) {
 			IsActive:     false,
 		}
 
-		err := storage.UpdateProfession(testCtx, updatedProfession)
+		err := storage.UpdateProfession(ctx, updatedProfession)
 
 		// Assert
 		require.NoError(t, err)
 
 		// Проверяем что профессия обновилась
-		updated, err := storage.GetProfessionByID(testCtx, professionID)
+		updated, err := storage.GetProfessionByID(ctx, professionID)
 		require.NoError(t, err)
 		require.Equal(t, "Test Updated Senior Go Developer #7", updated.Name)
 		require.Equal(t, "senior go developer test 7", updated.VacancyQuery)
@@ -281,7 +307,7 @@ func TestProfessionRepository(t *testing.T) {
 	})
 
 	t.Run("UpdateProfession_NotFound", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Тест - обновление несуществующей профессии
 		nonExistentID := uuid.New()
@@ -292,7 +318,7 @@ func TestProfessionRepository(t *testing.T) {
 			IsActive:     true,
 		}
 
-		err := storage.UpdateProfession(testCtx, profession)
+		err := storage.UpdateProfession(ctx, profession)
 
 		// Assert
 		require.Error(t, err)
@@ -300,7 +326,7 @@ func TestProfessionRepository(t *testing.T) {
 	})
 
 	t.Run("UpdateProfession_AlreadyExists", func(t *testing.T) {
-		cleanProfessionTable(t, storage)
+		cleanProfessionTable(ctx, t, storage)
 
 		// Создаем две профессии
 		profession1 := domain.Profession{
@@ -314,14 +340,14 @@ func TestProfessionRepository(t *testing.T) {
 			IsActive:     true,
 		}
 
-		insertProfession(t, storage, profession1)
-		id2 := insertProfession(t, storage, profession2)
+		insertProfession(ctx, t, storage, profession1)
+		id2 := insertProfession(ctx, t, storage, profession2)
 
 		// Пытаемся обновить profession2 именем profession1 (должен быть unique violation)
 		profession2.ID = id2
 		profession2.Name = profession1.Name
 
-		err := storage.UpdateProfession(testCtx, profession2)
+		err := storage.UpdateProfession(ctx, profession2)
 
 		// Assert
 		require.Error(t, err)

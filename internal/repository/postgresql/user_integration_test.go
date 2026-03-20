@@ -1,5 +1,7 @@
 //go:build integration
 
+// Интеграционные тесты для user репозитория.
+// Каждый тест поднимает свой контейнер для полной изоляции.
 package postgresql_test
 
 import (
@@ -16,7 +18,9 @@ import (
 	"psa/tests/containers"
 )
 
-func mustParsePort(t *testing.T, portStr string) int {
+const migrationsPathUser = "migrations"
+
+func mustParsePortForUser(t *testing.T, portStr string) int {
 	t.Helper()
 
 	port, err := strconv.Atoi(portStr)
@@ -25,14 +29,14 @@ func mustParsePort(t *testing.T, portStr string) int {
 	return port
 }
 
-func createStorage(t *testing.T, dsn string, host string, port string) *postgresql.Storage {
+func createStorageForUser(t *testing.T, dsn string, host string, port string) *postgresql.Storage {
 	t.Helper()
 
 	cfg := config.StoragePath{
 		Username: "test",
 		Password: "test",
 		Host:     host,
-		Port:     mustParsePort(t, port),
+		Port:     mustParsePortForUser(t, port),
 		Database: "test",
 		SSLMode:  "disable",
 	}
@@ -47,41 +51,31 @@ func createStorage(t *testing.T, dsn string, host string, port string) *postgres
 	return storage
 }
 
-// setupTestDB поднимает БД один раз на все тесты в пакете
-var (
-	testStorageUser *postgresql.Storage
-	testCtxUser     = context.Background()
-)
-
 func setupTestDBUser(t *testing.T) *postgresql.Storage {
 	t.Helper()
 
-	if testStorageUser != nil {
-		return testStorageUser
-	}
-
-	pg, err := containers.StartPostgres(testCtxUser)
+	ctx := context.Background()
+	pg, err := containers.StartPostgres(ctx)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		_ = pg.Container.Terminate(testCtxUser)
+		_ = pg.Container.Terminate(ctx)
 	})
 
-	err = containers.RunMigrations(pg.DSN, migrationsPath)
+	err = containers.RunMigrations(pg.DSN, migrationsPathUser)
 	require.NoError(t, err)
 
-	testStorageUser = createStorage(t, pg.DSN, pg.Host, pg.Port)
-	return testStorageUser
+	return createStorageForUser(t, pg.DSN, pg.Host, pg.Port)
 }
 
-func createUser(t *testing.T, storage *postgresql.Storage, email, password string, isAdmin bool) uuid.UUID {
+func createUser(ctx context.Context, t *testing.T, storage *postgresql.Storage, email, password string, isAdmin bool) uuid.UUID {
 	t.Helper()
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	require.NoError(t, err)
 
 	userID := uuid.New()
-	_, err = storage.Pool.Exec(testCtxUser, `
+	_, err = storage.Pool.Exec(ctx, `
 		INSERT INTO users (id, email, hashed_password, is_admin, created_at)
 		VALUES ($1, $2, $3, $4, NOW())
 	`, userID, email, string(hashedPassword), isAdmin)
@@ -90,25 +84,26 @@ func createUser(t *testing.T, storage *postgresql.Storage, email, password strin
 	return userID
 }
 
-func cleanUsersTable(t *testing.T, storage *postgresql.Storage) {
+func cleanUsersTable(ctx context.Context, t *testing.T, storage *postgresql.Storage) {
 	t.Helper()
-	_, err := storage.Pool.Exec(testCtxUser, `TRUNCATE users RESTART IDENTITY CASCADE`)
+	_, err := storage.Pool.Exec(ctx, `TRUNCATE users RESTART IDENTITY CASCADE`)
 	require.NoError(t, err)
 }
 
 func TestUserRepository(t *testing.T) {
+	ctx := context.Background()
 	storage := setupTestDBUser(t)
 
 	t.Run("GetUserByEmail_Success", func(t *testing.T) {
-		cleanUsersTable(t, storage)
+		cleanUsersTable(ctx, t, storage)
 
 		// Создание тестового пользователя
 		email := "test1@example.com"
 		password := "password123"
-		userID := createUser(t, storage, email, password, false)
+		userID := createUser(ctx, t, storage, email, password, false)
 
 		// Тест
-		user, err := storage.GetUserByEmail(testCtxUser, email)
+		user, err := storage.GetUserByEmail(ctx, email)
 
 		// Assert
 		require.NoError(t, err)
@@ -121,10 +116,10 @@ func TestUserRepository(t *testing.T) {
 	})
 
 	t.Run("GetUserByEmail_UserNotFound", func(t *testing.T) {
-		cleanUsersTable(t, storage)
+		cleanUsersTable(ctx, t, storage)
 
 		// Тест (пользователь не создан)
-		user, err := storage.GetUserByEmail(testCtxUser, "nonexistent1@example.com")
+		user, err := storage.GetUserByEmail(ctx, "nonexistent1@example.com")
 
 		// Assert
 		require.NoError(t, err)
@@ -132,15 +127,15 @@ func TestUserRepository(t *testing.T) {
 	})
 
 	t.Run("GetUserByEmail_AdminUser", func(t *testing.T) {
-		cleanUsersTable(t, storage)
+		cleanUsersTable(ctx, t, storage)
 
 		// Создание админа
 		email := "admin1@example.com"
 		password := "admin123"
-		userID := createUser(t, storage, email, password, true)
+		userID := createUser(ctx, t, storage, email, password, true)
 
 		// Тест
-		user, err := storage.GetUserByEmail(testCtxUser, email)
+		user, err := storage.GetUserByEmail(ctx, email)
 
 		// Assert
 		require.NoError(t, err)
@@ -152,15 +147,15 @@ func TestUserRepository(t *testing.T) {
 	})
 
 	t.Run("GetUserByID_Success", func(t *testing.T) {
-		cleanUsersTable(t, storage)
+		cleanUsersTable(ctx, t, storage)
 
 		// Создание тестового пользователя
 		email := "test2@example.com"
 		password := "password123"
-		userID := createUser(t, storage, email, password, false)
+		userID := createUser(ctx, t, storage, email, password, false)
 
 		// Тест
-		user, err := storage.GetUserByID(testCtxUser, userID)
+		user, err := storage.GetUserByID(ctx, userID)
 
 		// Assert
 		require.NoError(t, err)
@@ -173,11 +168,11 @@ func TestUserRepository(t *testing.T) {
 	})
 
 	t.Run("GetUserByID_UserNotFound", func(t *testing.T) {
-		cleanUsersTable(t, storage)
+		cleanUsersTable(ctx, t, storage)
 
 		// Тест (несуществующий ID)
 		nonExistentID := uuid.New()
-		user, err := storage.GetUserByID(testCtxUser, nonExistentID)
+		user, err := storage.GetUserByID(ctx, nonExistentID)
 
 		// Assert
 		require.NoError(t, err)
