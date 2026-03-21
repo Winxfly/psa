@@ -2,7 +2,7 @@
 
 // Интеграционные тесты для redis professions репозитория.
 // Каждый тест поднимает свой контейнер для полной изоляции.
-package redis_test
+package redis
 
 import (
 	"context"
@@ -11,15 +11,21 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
 	"psa/internal/config"
 	"psa/internal/domain"
-	redisRepo "psa/internal/repository/redis"
 	"psa/tests/containers"
 )
 
-func createCacheForProfessions(t *testing.T, addr string) *redisRepo.Cache {
+// clientTestProfessions returns the underlying redis client for testing purposes.
+// This method is only available in integration tests.
+func (c *Cache) clientTestProfessions() *redis.Client {
+	return c.client
+}
+
+func createCacheForProfessions(t *testing.T, addr string) *Cache {
 	t.Helper()
 
 	cfg := config.Redis{
@@ -29,7 +35,7 @@ func createCacheForProfessions(t *testing.T, addr string) *redisRepo.Cache {
 		DefaultTTL: 24 * time.Hour,
 	}
 
-	cache, err := redisRepo.New(cfg)
+	cache, err := New(cfg)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -39,7 +45,7 @@ func createCacheForProfessions(t *testing.T, addr string) *redisRepo.Cache {
 	return cache
 }
 
-func setupTestRedisProfessions(t *testing.T) *redisRepo.Cache {
+func setupTestRedisProfessions(t *testing.T) *Cache {
 	t.Helper()
 
 	ctx := context.Background()
@@ -53,9 +59,9 @@ func setupTestRedisProfessions(t *testing.T) *redisRepo.Cache {
 	return createCacheForProfessions(t, redisContainer.Addr)
 }
 
-func cleanProfessionsCache(ctx context.Context, t *testing.T, cache *redisRepo.Cache) {
+func cleanProfessionsCache(ctx context.Context, t *testing.T, cache *Cache) {
 	t.Helper()
-	err := cache.ClientTest().Del(ctx, redisRepo.ProfessionListKey).Err()
+	err := cache.clientTestProfessions().Del(ctx, ProfessionListKey).Err()
 	require.NoError(t, err)
 }
 
@@ -208,7 +214,7 @@ func TestProfessionsCache(t *testing.T) {
 		require.NoError(t, err)
 
 		// Проверяем TTL ключа
-		ttl, err := cache.ClientTest().TTL(ctx, redisRepo.ProfessionListKey).Result()
+		ttl, err := cache.clientTestProfessions().TTL(ctx, ProfessionListKey).Result()
 		require.NoError(t, err)
 
 		// TTL должен быть установлен (~12h = ttl/2 от 24h)
@@ -223,13 +229,13 @@ func TestProfessionsCache(t *testing.T) {
 
 		// Создаем кэш с TTL 1 секунда
 		cfg := config.Redis{
-			Addr:       cache.ClientTest().Options().Addr,
+			Addr:       cache.clientTestProfessions().Options().Addr,
 			Password:   "",
 			DB:         0,
 			DefaultTTL: 2 * time.Second, // ttl/2 = 1 секунда
 		}
 
-		shortTTLCache, err := redisRepo.New(cfg)
+		shortTTLCache, err := New(cfg)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			shortTTLCache.Close()
@@ -267,7 +273,7 @@ func TestProfessionsCache(t *testing.T) {
 		})
 
 		// Записываем невалидный JSON напрямую в Redis
-		err := cache.ClientTest().Set(ctx, redisRepo.ProfessionListKey, "invalid-json", time.Hour).Err()
+		err := cache.clientTestProfessions().Set(ctx, ProfessionListKey, "invalid-json", time.Hour).Err()
 		require.NoError(t, err)
 
 		// Тест
