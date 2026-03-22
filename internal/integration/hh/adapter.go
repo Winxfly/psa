@@ -16,8 +16,12 @@ var (
 	hasLetterOrDigit = regexp.MustCompile(`[\p{L}\p{N}]`)
 )
 
+type professionFetcher interface {
+	fetchDataProfession(ctx context.Context, query, area string) (professionData, error)
+}
+
 type Adapter struct {
-	client *client
+	fetcher professionFetcher
 }
 
 func NewAdapter(cfg *config.Config, logger *slog.Logger) *Adapter {
@@ -36,12 +40,18 @@ func NewAdapter(cfg *config.Config, logger *slog.Logger) *Adapter {
 	client := newClient(cfg, logger, httpClient, tokenManager)
 
 	return &Adapter{
-		client: client,
+		fetcher: client,
+	}
+}
+
+func NewAdapterWithClient(client professionFetcher) *Adapter {
+	return &Adapter{
+		fetcher: client,
 	}
 }
 
 func (a *Adapter) FetchDataProfession(ctx context.Context, query, area string) ([]domain.VacancyData, int, error) {
-	profData, err := a.client.fetchDataProfession(ctx, query, area)
+	profData, err := a.fetcher.fetchDataProfession(ctx, query, area)
 	if err != nil {
 		return nil, 0, err
 	}
