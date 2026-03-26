@@ -109,5 +109,8 @@ VALUES ('Go Developer',
         true),
        ('1C Analyst',
         'аналитик 1с not бизнес not системный not разработчик',
+        true),
+       ('Product Owner',
+        '"product owner" or "владелец продукта" not бизнес not менеджер not бизнес/системный',
         true)
 ON CONFLICT (name) DO NOTHING;
