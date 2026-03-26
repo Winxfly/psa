@@ -8,20 +8,22 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"psa/internal/config"
 )
 
 const (
-	baseUrl            = "https://api.hh.ru/token"
+	defaultBaseURL     = "https://api.hh.ru/token"
 	minRefreshInterval = 5 * time.Minute
 	grantType          = "client_credentials"
 )
 
-// tokenManager is NOT thread-safe.
-// It assumes sequential usage due to HH API 5 RPS limit.
+// tokenManager manages HH API tokens with automatic refresh.
 type tokenManager struct {
+	mu           sync.Mutex
+	baseURL      string
 	clientID     string
 	clientSecret string
 	httpClient   *http.Client
@@ -34,6 +36,7 @@ type tokenManager struct {
 
 func newTokenManager(cfg config.HHAuth, logger *slog.Logger) *tokenManager {
 	tm := &tokenManager{
+		baseURL:      defaultBaseURL,
 		clientID:     cfg.ClientID,
 		clientSecret: cfg.ClientSecret,
 		httpClient:   &http.Client{Timeout: 30 * time.Second},
@@ -42,7 +45,7 @@ func newTokenManager(cfg config.HHAuth, logger *slog.Logger) *tokenManager {
 
 	if cfg.AccessToken != "" {
 		tm.accessToken = cfg.AccessToken
-		tm.lastRefresh = time.Now().Add(-time.Minute * 6)
+		tm.lastRefresh = time.Now().Add(-minRefreshInterval - time.Minute)
 	}
 
 	return tm
@@ -51,12 +54,18 @@ func newTokenManager(cfg config.HHAuth, logger *slog.Logger) *tokenManager {
 func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 	const op = "integration.hh.token.getToken"
 
+	tm.mu.Lock()
 	if tm.accessToken != "" && !tm.refreshFailed {
-		return tm.accessToken, nil
+		token := tm.accessToken
+		tm.mu.Unlock()
+		return token, nil
 	}
 
-	if time.Since(tm.lastRefresh) < minRefreshInterval {
-		waitTime := minRefreshInterval - time.Since(tm.lastRefresh)
+	waitTime := minRefreshInterval - time.Since(tm.lastRefresh)
+	needWait := waitTime > 0
+	tm.mu.Unlock()
+
+	if needWait {
 		tm.logger.InfoContext(ctx, op, "event", "refresh_wait", "wait_duration", waitTime)
 
 		timer := time.NewTimer(waitTime)
@@ -64,13 +73,21 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 
 		select {
 		case <-timer.C:
-			// continue next step
+			// continue to refresh
 		case <-ctx.Done():
 			return "", ctx.Err()
 		}
 	}
 
-	tm.logger.Info(op, "event", "refresh_token")
+	tm.mu.Lock()
+	if tm.accessToken != "" && !tm.refreshFailed {
+		token := tm.accessToken
+		tm.mu.Unlock()
+		return token, nil
+	}
+	tm.mu.Unlock()
+
+	tm.logger.InfoContext(ctx, op, "event", "refresh_token")
 
 	data := url.Values{}
 	data.Set("grant_type", grantType)
@@ -80,11 +97,13 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		baseUrl,
+		tm.baseURL,
 		bytes.NewBufferString(data.Encode()),
 	)
 	if err != nil {
+		tm.mu.Lock()
 		tm.refreshFailed = true
+		tm.mu.Unlock()
 		return "", fmt.Errorf("%s: build request: %w", op, err)
 	}
 
@@ -92,13 +111,17 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 
 	resp, err := tm.httpClient.Do(req)
 	if err != nil {
+		tm.mu.Lock()
 		tm.refreshFailed = true
+		tm.mu.Unlock()
 		return "", fmt.Errorf("%s: do request: %w", op, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
+		tm.mu.Lock()
 		tm.refreshFailed = true
+		tm.mu.Unlock()
 		return "", fmt.Errorf("%s: unexpected status code %d", op, resp.StatusCode)
 	}
 
@@ -107,20 +130,26 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		tm.mu.Lock()
 		tm.refreshFailed = true
-		return "", fmt.Errorf("%s: decode respond: %w", op, err)
+		tm.mu.Unlock()
+		return "", fmt.Errorf("%s: decode response: %w", op, err)
 	}
 
 	if result.AccessToken == "" {
+		tm.mu.Lock()
 		tm.refreshFailed = true
+		tm.mu.Unlock()
 		return "", fmt.Errorf("%s: empty access token", op)
 	}
 
+	tm.mu.Lock()
 	tm.accessToken = result.AccessToken
 	tm.lastRefresh = time.Now()
 	tm.refreshFailed = false
+	tm.mu.Unlock()
 
-	tm.logger.Info(op, "event", "refresh_success")
+	tm.logger.InfoContext(ctx, op, "event", "refresh_success")
 
 	return result.AccessToken, nil
 }
@@ -128,6 +157,9 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 func (tm *tokenManager) handleAuthError() {
 	const op = "integration.hh.token.handleAuthError"
 
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
 	tm.refreshFailed = true
-	tm.logger.Warn(op, "event", "token_marked_invalid")
+	tm.logger.WarnContext(context.Background(), op, "event", "token_marked_invalid")
 }
