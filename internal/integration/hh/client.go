@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
-
 	"log/slog"
 	"math"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -37,6 +37,7 @@ type tokenProvider interface {
 }
 
 type client struct {
+	baseURL string
 	cfg     *config.Config
 	logger  *slog.Logger
 	hClient *http.Client
@@ -46,6 +47,7 @@ type client struct {
 
 func newClient(cfg *config.Config, logger *slog.Logger, hClient *http.Client, token tokenProvider) *client {
 	return &client{
+		baseURL: baseURL,
 		cfg:     cfg,
 		logger:  logger,
 		hClient: hClient,
@@ -176,7 +178,7 @@ func (c *client) fetchMeta(ctx context.Context, query, area string) (metadata, e
 		"area":         []string{area},
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"?"+params.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"?"+params.Encode(), nil)
 	if err != nil {
 		return metadata{}, fmt.Errorf("%s: build request: %w", op, err)
 	}
@@ -213,7 +215,7 @@ func (c *client) fetchIDsFromPage(ctx context.Context, page int, query, area str
 		"area":         []string{area},
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"?"+params.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"?"+params.Encode(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -253,6 +255,11 @@ func (c *client) fetchIDsVacancies(ctx context.Context, meta metadata, query, ar
 
 	sem := make(chan struct{}, pageWorkers)
 
+	var (
+		failedPages  atomic.Int32
+		successPages atomic.Int32
+	)
+
 	for i := 0; i < meta.Pages; i++ {
 		select {
 		case <-ctx.Done():
@@ -268,18 +275,43 @@ func (c *client) fetchIDsVacancies(ctx context.Context, meta metadata, query, ar
 
 			temp, err := c.fetchIDsFromPage(ctx, i, query, area)
 			if err != nil {
-				c.logger.ErrorContext(ctx, op, "event", "fetch_ids_failed", "page", i, "query", query, "error", err)
+				failedPages.Add(1)
+
+				c.logger.ErrorContext(ctx, op,
+					"event", "fetch_ids_failed",
+					"page", i,
+					"query", query,
+					"error", err,
+				)
 				return
 			}
+
+			successPages.Add(1)
 
 			mu.Lock()
 			ids = append(ids, temp...)
 			mu.Unlock()
 		}(i)
-
 	}
 
 	wg.Wait()
+
+	total := meta.Pages
+	failed := int(failedPages.Load())
+	success := int(successPages.Load())
+
+	if failed > 0 {
+		c.logger.WarnContext(ctx, op,
+			"event", "partial_data_loss",
+			"total_pages", total,
+			"success_pages", success,
+			"failed_pages", failed,
+		)
+	}
+
+	if success == 0 {
+		return nil, fmt.Errorf("%s: all pages failed", op)
+	}
 
 	return ids, nil
 }
@@ -287,7 +319,7 @@ func (c *client) fetchIDsVacancies(ctx context.Context, meta metadata, query, ar
 func (c *client) fetchDataVacancy(ctx context.Context, id string) (vacancyResponse, error) {
 	const op = "integration.hh.hClient.fetchDataVacancy"
 
-	link := fmt.Sprintf("%s/%s", baseURL, id)
+	link := fmt.Sprintf("%s/%s", c.baseURL, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 	if err != nil {
@@ -317,6 +349,11 @@ func (c *client) fetchDataVacancies(ctx context.Context, ids []string) ([]vacanc
 
 	var wg sync.WaitGroup
 
+	var (
+		failedVacancies  atomic.Int32
+		successVacancies atomic.Int32
+	)
+
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 
@@ -326,9 +363,17 @@ func (c *client) fetchDataVacancies(ctx context.Context, ids []string) ([]vacanc
 			for id := range jobs {
 				vac, err := c.fetchDataVacancy(ctx, id)
 				if err != nil {
-					c.logger.ErrorContext(ctx, op, "event", "fetch_vacancy_failed", "vacancy_id", id, "error", err)
+					failedVacancies.Add(1)
+
+					c.logger.ErrorContext(ctx, op,
+						"event", "fetch_vacancy_failed",
+						"vacancy_id", id,
+						"error", err,
+					)
 					continue
 				}
+
+				successVacancies.Add(1)
 
 				select {
 				case data <- vac:
@@ -363,6 +408,22 @@ func (c *client) fetchDataVacancies(ctx context.Context, ids []string) ([]vacanc
 		default:
 			result = append(result, v)
 		}
+	}
+
+	failed := int(failedVacancies.Load())
+	success := int(successVacancies.Load())
+
+	if failed > 0 {
+		c.logger.WarnContext(ctx, op,
+			"event", "partial_data_loss",
+			"total_ids", len(ids),
+			"success", success,
+			"failed", failed,
+		)
+	}
+
+	if success == 0 {
+		return nil, fmt.Errorf("%s: all vacancies fetch failed", op)
 	}
 
 	return result, nil
