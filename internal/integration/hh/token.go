@@ -32,6 +32,7 @@ type tokenManager struct {
 	accessToken   string
 	lastRefresh   time.Time
 	refreshFailed bool
+	refreshing    bool
 }
 
 func newTokenManager(cfg config.HHAuth, logger *slog.Logger) *tokenManager {
@@ -54,16 +55,32 @@ func newTokenManager(cfg config.HHAuth, logger *slog.Logger) *tokenManager {
 func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 	const op = "integration.hh.token.getToken"
 
-	tm.mu.Lock()
-	if tm.accessToken != "" && !tm.refreshFailed {
-		token := tm.accessToken
+	for {
+		tm.mu.Lock()
+
+		if tm.accessToken != "" && !tm.refreshFailed {
+			token := tm.accessToken
+			tm.mu.Unlock()
+			return token, nil
+		}
+
+		if !tm.refreshing {
+			tm.refreshing = true
+			tm.mu.Unlock()
+			break
+		}
+
 		tm.mu.Unlock()
-		return token, nil
+
+		select {
+		case <-time.After(50 * time.Millisecond):
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
 	}
 
 	waitTime := minRefreshInterval - time.Since(tm.lastRefresh)
 	needWait := waitTime > 0
-	tm.mu.Unlock()
 
 	if needWait {
 		tm.logger.InfoContext(ctx, op, "event", "refresh_wait", "wait_duration", waitTime)
@@ -75,6 +92,9 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 		case <-timer.C:
 			// continue to refresh
 		case <-ctx.Done():
+			tm.mu.Lock()
+			tm.refreshing = false
+			tm.mu.Unlock()
 			return "", ctx.Err()
 		}
 	}
@@ -103,6 +123,7 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 	if err != nil {
 		tm.mu.Lock()
 		tm.refreshFailed = true
+		tm.refreshing = false
 		tm.mu.Unlock()
 		return "", fmt.Errorf("%s: build request: %w", op, err)
 	}
@@ -113,6 +134,7 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 	if err != nil {
 		tm.mu.Lock()
 		tm.refreshFailed = true
+		tm.refreshing = false
 		tm.mu.Unlock()
 		return "", fmt.Errorf("%s: do request: %w", op, err)
 	}
@@ -121,6 +143,7 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 	if resp.StatusCode != http.StatusOK {
 		tm.mu.Lock()
 		tm.refreshFailed = true
+		tm.refreshing = false
 		tm.mu.Unlock()
 		return "", fmt.Errorf("%s: unexpected status code %d", op, resp.StatusCode)
 	}
@@ -132,6 +155,7 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		tm.mu.Lock()
 		tm.refreshFailed = true
+		tm.refreshing = false
 		tm.mu.Unlock()
 		return "", fmt.Errorf("%s: decode response: %w", op, err)
 	}
@@ -139,6 +163,7 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 	if result.AccessToken == "" {
 		tm.mu.Lock()
 		tm.refreshFailed = true
+		tm.refreshing = false
 		tm.mu.Unlock()
 		return "", fmt.Errorf("%s: empty access token", op)
 	}
@@ -147,6 +172,7 @@ func (tm *tokenManager) getToken(ctx context.Context) (string, error) {
 	tm.accessToken = result.AccessToken
 	tm.lastRefresh = time.Now()
 	tm.refreshFailed = false
+	tm.refreshing = false
 	tm.mu.Unlock()
 
 	tm.logger.InfoContext(ctx, op, "event", "refresh_success")
