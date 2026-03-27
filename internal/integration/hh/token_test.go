@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -360,4 +361,54 @@ func TestTokenManager_HandleAuthError_ThenGetToken(t *testing.T) {
 	assert.Equal(t, "refreshed-token", token)
 	assert.Equal(t, 1, requestCount)  // был один запрос на refresh
 	assert.False(t, tm.refreshFailed) // флаг сброшен после успеха
+}
+
+func TestTokenManager_GetToken_Parallel(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	logger := newTestLogger()
+
+	requestCount := 0
+	var mu sync.Mutex
+
+	// Создаём тестовый сервер который считает запросы
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requestCount++
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"access_token": "parallel-token"}`))
+	}))
+	defer server.Close()
+
+	tm := newTestTokenManager(server.URL, logger, "")
+	tm.lastRefresh = time.Now().Add(-time.Hour)
+	tm.refreshFailed = true // Форсируем refresh
+
+	// Запускаем 100 горуттин одновременно
+	const goroutines = 100
+	var wg sync.WaitGroup
+	tokens := make([]string, goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			token, err := tm.getToken(ctx)
+			require.NoError(t, err)
+			tokens[idx] = token
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Assert — все получили один токен, HTTP вызов = 1
+	assert.Equal(t, 1, requestCount)
+
+	for i := 1; i < goroutines; i++ {
+		assert.Equal(t, tokens[0], tokens[i])
+	}
 }
