@@ -6,8 +6,6 @@ import (
 
 	"psa/internal/domain"
 	"psa/internal/handler/http/v1/handler"
-	"psa/internal/handler/http/v1/request"
-	"psa/internal/handler/http/v1/response"
 	"psa/pkg/logger/loggerctx"
 )
 
@@ -27,6 +25,16 @@ func NewAuthHandler(authenticator Authenticator) *AuthHandler {
 	}
 }
 
+type signInRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type tokenPairResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
 func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) error {
 	log := loggerctx.FromContext(r.Context())
 
@@ -34,7 +42,7 @@ func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) error {
 		return handler.StatusMethodNotAllowed("Method not allowed")
 	}
 
-	var req request.SignInRequest
+	var req signInRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
 		return err
 	}
@@ -47,7 +55,7 @@ func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) error {
 
 	log.Info("auth_signin_success")
 
-	resp := response.TokenPairResponse{
+	resp := tokenPairResponse{
 		AccessToken:  tokenPair.AccessToken,
 		RefreshToken: tokenPair.RefreshToken,
 	}
@@ -57,6 +65,10 @@ func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+type refreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) error {
 	log := loggerctx.FromContext(r.Context())
 
@@ -64,7 +76,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) error {
 		return handler.StatusMethodNotAllowed("Method not allowed")
 	}
 
-	var req request.RefreshTokenRequest
+	var req refreshTokenRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
 		return err
 	}
@@ -75,13 +87,21 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) error {
 		return handler.StatusUnauthorized("Invalid refresh token")
 	}
 
-	resp := response.TokenPairResponse{
+	resp := tokenPairResponse{
 		AccessToken:  tokenPair.AccessToken,
 		RefreshToken: tokenPair.RefreshToken,
 	}
 
 	handler.RespondJSON(w, http.StatusOK, resp)
 	return nil
+}
+
+type logoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type logoutResponse struct {
+	Message string `json:"message"`
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) error {
@@ -91,7 +111,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) error {
 		return handler.StatusMethodNotAllowed("Method not allowed")
 	}
 
-	var req request.LogoutRequest
+	var req logoutRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
 		return err
 	}
@@ -102,7 +122,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) error {
 
 	log.Info("auth_logout_success")
 
-	handler.RespondJSON(w, http.StatusOK, response.LogoutResponse{
+	handler.RespondJSON(w, http.StatusOK, logoutResponse{
 		Message: "Successfully logged out",
 	})
 

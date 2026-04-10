@@ -8,8 +8,6 @@ import (
 
 	"psa/internal/domain"
 	"psa/internal/handler/http/v1/handler"
-	"psa/internal/handler/http/v1/request"
-	"psa/internal/handler/http/v1/response"
 	"psa/pkg/logger/loggerctx"
 	"psa/pkg/logger/slogx"
 )
@@ -37,11 +35,23 @@ func NewProfessionAdminHandler(profession ProfessionAdminAccesser, scraping Scra
 	}
 }
 
+type createProfessionRequest struct {
+	Name         string `json:"name"`
+	VacancyQuery string `json:"vacancy_query"`
+}
+
+type professionAdminResponse struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	VacancyQuery string `json:"vacancy_query"`
+	IsActive     bool   `json:"is_active"`
+}
+
 func (h *ProfessionAdminHandler) Create(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	log := loggerctx.FromContext(ctx)
 
-	var req request.CreateProfessionRequest
+	var req createProfessionRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
 		log.Warn("profession_admin_create_decode_failed", slogx.Err(err))
 
@@ -63,7 +73,7 @@ func (h *ProfessionAdminHandler) Create(w http.ResponseWriter, r *http.Request) 
 
 	log.Info("profession_admin_create_success", "profession_id", id, "name", profession.Name)
 
-	handler.RespondJSON(w, http.StatusCreated, response.ProfessionAdminResponse{
+	handler.RespondJSON(w, http.StatusCreated, professionAdminResponse{
 		ID:           id.String(),
 		Name:         profession.Name,
 		VacancyQuery: profession.VacancyQuery,
@@ -71,6 +81,12 @@ func (h *ProfessionAdminHandler) Create(w http.ResponseWriter, r *http.Request) 
 	})
 
 	return nil
+}
+
+type updateProfessionRequest struct {
+	Name         string `json:"name"`
+	VacancyQuery string `json:"vacancy_query"`
+	IsActive     bool   `json:"is_active"`
 }
 
 func (h *ProfessionAdminHandler) Change(w http.ResponseWriter, r *http.Request) error {
@@ -83,7 +99,7 @@ func (h *ProfessionAdminHandler) Change(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	var req request.UpdateProfessionRequest
+	var req updateProfessionRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
 		log.Warn("profession_admin_change_decode_failed", slogx.Err(err))
 		return err
@@ -103,7 +119,7 @@ func (h *ProfessionAdminHandler) Change(w http.ResponseWriter, r *http.Request) 
 
 	log.Info("profession_admin_change_success", "profession_id", professionID)
 
-	handler.RespondJSON(w, http.StatusOK, response.ProfessionAdminResponse{
+	handler.RespondJSON(w, http.StatusOK, professionAdminResponse{
 		ID:           profession.ID.String(),
 		Name:         profession.Name,
 		VacancyQuery: profession.VacancyQuery,
@@ -124,9 +140,9 @@ func (h *ProfessionAdminHandler) ListAllProfessions(w http.ResponseWriter, r *ht
 		return handler.StatusInternalServerError("Failed to get all professions")
 	}
 
-	resp := make([]response.ProfessionAdminResponse, len(professions))
+	resp := make([]professionAdminResponse, len(professions))
 	for i, p := range professions {
-		resp[i] = response.ProfessionAdminResponse{
+		resp[i] = professionAdminResponse{
 			ID:           p.ID.String(),
 			Name:         p.Name,
 			VacancyQuery: p.VacancyQuery,

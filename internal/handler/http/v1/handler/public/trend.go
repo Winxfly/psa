@@ -9,7 +9,6 @@ import (
 
 	"psa/internal/domain"
 	"psa/internal/handler/http/v1/handler"
-	"psa/internal/handler/http/v1/response"
 	"psa/pkg/logger/loggerctx"
 	"psa/pkg/logger/slogx"
 )
@@ -28,6 +27,17 @@ func NewTrendHandler(provider TrendProvider) *TrendHandler {
 	}
 }
 
+type trendPoint struct {
+	Date         string `json:"date"`
+	VacancyCount int32  `json:"vacancy_count"`
+}
+
+type professionTrendResponse struct {
+	ProfessionID   string       `json:"profession_id"`
+	ProfessionName string       `json:"profession_name"`
+	Data           []trendPoint `json:"data"`
+}
+
 func (h *TrendHandler) GetProfessionTrend(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	log := loggerctx.FromContext(ctx)
@@ -44,14 +54,14 @@ func (h *TrendHandler) GetProfessionTrend(w http.ResponseWriter, r *http.Request
 		return handler.StatusNotFound("Profession trend not found")
 	}
 
-	resp := response.ProfessionTrendResponse{
+	resp := professionTrendResponse{
 		ProfessionID:   trend.ProfessionID.String(),
 		ProfessionName: trend.ProfessionName,
-		Data:           make([]response.TrendPoint, len(trend.Data)),
+		Data:           make([]trendPoint, len(trend.Data)),
 	}
 
 	for i, point := range trend.Data {
-		resp.Data[i] = response.TrendPoint{
+		resp.Data[i] = trendPoint{
 			Date:         point.Date.Format(time.RFC3339),
 			VacancyCount: point.VacancyCount,
 		}
