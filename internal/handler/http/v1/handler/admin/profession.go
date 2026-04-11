@@ -3,6 +3,9 @@ package admin
 import (
 	"context"
 	"net/http"
+	"runtime/debug"
+	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -24,8 +27,9 @@ type ScrapingProvider interface {
 }
 
 type ProfessionAdminHandler struct {
-	profession ProfessionAdminAccesser
-	scraping   ScrapingProvider
+	profession         ProfessionAdminAccesser
+	scraping           ScrapingProvider
+	scrapingInProgress atomic.Bool
 }
 
 func NewProfessionAdminHandler(profession ProfessionAdminAccesser, scraping ScrapingProvider) *ProfessionAdminHandler {
@@ -156,25 +160,51 @@ func (h *ProfessionAdminHandler) ListAllProfessions(w http.ResponseWriter, r *ht
 	return nil
 }
 
-func (h *ProfessionAdminHandler) TriggerScraping(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-	log := loggerctx.FromContext(ctx)
+func (h *ProfessionAdminHandler) triggerScraping(
+	w http.ResponseWriter, r *http.Request,
+	mode string, runFunc func(context.Context) error) error {
+	log := loggerctx.FromContext(r.Context()).With("component", "scraping")
 
-	log.Info("scraping_triggered")
+	if !h.scrapingInProgress.CompareAndSwap(false, true) {
+		return handler.StatusConflict("Scraping already in progress")
+	}
+
+	log.Info("scraping_triggered", "mode", mode)
 
 	go func() {
+		defer h.scrapingInProgress.Store(false)
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Error("scraping_panic", "mode", mode, "panic", rec, "stack", string(debug.Stack()))
+			}
+		}()
+
 		ctx := loggerctx.WithLogger(context.Background(), log)
-		ctxLog := loggerctx.FromContext(ctx)
-		if err := h.scraping.ProcessActiveProfessionsArchive(ctx); err != nil {
-			ctxLog.Error("scraping_process_failed", slogx.Err(err))
-		} else {
-			ctxLog.Info("scraping_completed")
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+		defer cancel()
+
+		taskLog := loggerctx.FromContext(ctx)
+
+		if err := runFunc(ctx); err != nil {
+			taskLog.Error("scraping_failed", "mode", mode, slogx.Err(err))
+			return
 		}
+
+		taskLog.Info("scraping_completed", "mode", mode)
 	}()
 
 	handler.RespondJSON(w, http.StatusAccepted, map[string]string{
 		"status": "started",
+		"mode":   mode,
 	})
 
 	return nil
+}
+
+func (h *ProfessionAdminHandler) TriggerArchiveScraping(w http.ResponseWriter, r *http.Request) error {
+	return h.triggerScraping(w, r, "archive", h.scraping.ProcessActiveProfessionsArchive)
+}
+
+func (h *ProfessionAdminHandler) TriggerCacheScraping(w http.ResponseWriter, r *http.Request) error {
+	return h.triggerScraping(w, r, "cache", h.scraping.ProcessActiveProfessionsDaily)
 }

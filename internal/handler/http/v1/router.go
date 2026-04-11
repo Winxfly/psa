@@ -51,7 +51,8 @@ func (r *Router) RegisterAdminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /professions/{id}", handler.Handle(r.professionAdminHandler.Change))
 
 	// Scraping admin routes
-	mux.HandleFunc("POST /scraping/trigger", handler.Handle(r.professionAdminHandler.TriggerScraping))
+	mux.HandleFunc("POST /scraping/archive", handler.Handle(r.professionAdminHandler.TriggerArchiveScraping))
+	mux.HandleFunc("POST /scraping/cache", handler.Handle(r.professionAdminHandler.TriggerCacheScraping))
 }
 
 func (r *Router) health(w http.ResponseWriter, req *http.Request) {

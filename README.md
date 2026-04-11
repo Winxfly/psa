@@ -440,18 +440,36 @@ Response 200 OK:
 }
 ```
 
-#### Запуск сбора данных вручную (все профессии)
+#### Запуск сбора данных и сохранение данных в БД (все профессии)
 
-##### POST /api/v1/admin/scraping/trigger
+##### POST /api/v1/admin/scraping/archive
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/admin/scraping/trigger \
+curl -X POST http://localhost:8080/api/v1/admin/scraping/archive \
   -H "Authorization: Bearer <access-token>"
 ```
 
 Response 202 Accepted:
 ```json
 {
-  "status": "started"
+  "status": "started",
+  "mode": "archive"
+}
+```
+
+#### Запуск сбора данных и сохранение данных в кэш (все профессии)
+
+##### POST /api/v1/admin/scraping/cache
+
+```bash
+curl -X POST http://localhost:8080/api/v1/admin/scraping/cache \
+  -H "Authorization: Bearer <access-token>"
+```
+
+Response 202 Accepted:
+```json
+{
+  "status": "started",
+  "mode": "cache"
 }
 ```
