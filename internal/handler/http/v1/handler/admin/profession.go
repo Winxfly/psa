@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -60,6 +61,13 @@ func (h *ProfessionAdminHandler) Create(w http.ResponseWriter, r *http.Request) 
 		log.Warn("profession_admin_create_decode_failed", slogx.Err(err))
 
 		return err
+	}
+
+	if strings.TrimSpace(req.Name) == "" {
+		return handler.StatusBadRequest("Name is required")
+	}
+	if strings.TrimSpace(req.VacancyQuery) == "" {
+		return handler.StatusBadRequest("Vacancy query is required")
 	}
 
 	profession := domain.Profession{

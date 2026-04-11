@@ -39,9 +39,6 @@ func (r *Router) RegisterPublicRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /professions", handler.Handle(r.professionHandler.ListProfessions))
 	mux.HandleFunc("GET /professions/{id}/latest", handler.Handle(r.professionHandler.LastProfessionDetails))
 	mux.HandleFunc("GET /professions/{id}/trend", handler.Handle(r.trendHandler.GetProfessionTrend))
-
-	// Health check
-	mux.HandleFunc("GET /health", r.health)
 }
 
 func (r *Router) RegisterAdminRoutes(mux *http.ServeMux) {
@@ -53,9 +50,4 @@ func (r *Router) RegisterAdminRoutes(mux *http.ServeMux) {
 	// Scraping admin routes
 	mux.HandleFunc("POST /scraping/archive", handler.Handle(r.professionAdminHandler.TriggerArchiveScraping))
 	mux.HandleFunc("POST /scraping/cache", handler.Handle(r.professionAdminHandler.TriggerCacheScraping))
-}
-
-func (r *Router) health(w http.ResponseWriter, req *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ok"))
 }

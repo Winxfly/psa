@@ -2,6 +2,7 @@ package public
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -94,8 +95,12 @@ func (h *ProfessionHandler) LastProfessionDetails(w http.ResponseWriter, r *http
 
 	profession, err := h.provider.ProfessionSkills(ctx, professionID)
 	if err != nil {
-		log.Warn("profession_details_not_found", "profession_id", professionID)
-		return handler.StatusNotFound("Profession not found")
+		if errors.Is(err, domain.ErrProfessionNotFound) {
+			return handler.StatusNotFound("Profession not found")
+		}
+
+		log.Error("profession_details_failed", "profession_id", professionID, slogx.Err(err))
+		return handler.StatusInternalServerError("Failed to get profession details")
 	}
 
 	resp := professionDetailResponse{
@@ -124,17 +129,23 @@ func (h *ProfessionHandler) LastProfessionDetails(w http.ResponseWriter, r *http
 	if includeTrend {
 		trend, err := h.provider.ProfessionTrend(ctx, professionID)
 		if err != nil {
-			log.Warn("profession_trend_failed", "profession_id", professionID, slogx.Err(err))
-		} else {
-			resp.Trend = make([]trendProfession, len(trend.Data))
-			for i, point := range trend.Data {
-				resp.Trend[i] = trendProfession{
-					Date:         point.Date.Format(time.RFC3339),
-					VacancyCount: point.VacancyCount,
-				}
+			if errors.Is(err, domain.ErrProfessionNotFound) {
+				return handler.StatusNotFound("Profession not found")
 			}
-			log.Debug("profession_trend_loaded", "profession_id", professionID, "points_count", len(trend.Data))
+
+			log.Error("profession_trend_failed", "profession_id", professionID, slogx.Err(err))
+			return handler.StatusInternalServerError("Failed to get profession details")
 		}
+
+		resp.Trend = make([]trendProfession, len(trend.Data))
+		for i, point := range trend.Data {
+			resp.Trend[i] = trendProfession{
+				Date:         point.Date.Format(time.RFC3339),
+				VacancyCount: point.VacancyCount,
+			}
+		}
+		log.Debug("profession_trend_loaded", "profession_id", professionID, "points_count", len(trend.Data))
+
 	}
 
 	log.Debug("profession_details_success", "profession_id", professionID)

@@ -110,18 +110,6 @@ Response 200 OK:
 ok
 ```
 
-#### API availability check
-Проверка API V1
-
-```bash
-curl http://localhost:8080/api/v1/health
-```
-
-Response 200 OK:
-```
-ok
-```
-
 ### Аутентификация
 
 #### Sign in

@@ -2,6 +2,7 @@ package public
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -50,8 +51,11 @@ func (h *TrendHandler) GetProfessionTrend(w http.ResponseWriter, r *http.Request
 
 	trend, err := h.provider.ProfessionTrend(ctx, professionID)
 	if err != nil {
-		log.Warn("trend_not_found", "profession_id", professionID, slogx.Err(err))
-		return handler.StatusNotFound("Profession trend not found")
+		if errors.Is(err, domain.ErrProfessionNotFound) {
+			return handler.StatusNotFound("Profession trend not found")
+		}
+		log.Error("trend_failed", "profession_id", professionID, slogx.Err(err))
+		return handler.StatusInternalServerError("Failed to get profession trend")
 	}
 
 	resp := professionTrendResponse{

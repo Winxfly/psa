@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 
+	"psa/pkg/logger/loggerctx"
+
 	"github.com/google/uuid"
 )
 
@@ -57,7 +59,8 @@ func handleError(w http.ResponseWriter, r *http.Request, err error) {
 		msg = httpErr.Msg
 	}
 
-	slog.ErrorContext(r.Context(), "handler error",
+	log := loggerctx.FromContext(r.Context())
+	log.ErrorContext(r.Context(), "handler error",
 		"error", err,
 		"status", status,
 		"method", r.Method,

@@ -38,10 +38,6 @@ type tokenPairResponse struct {
 func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) error {
 	log := loggerctx.FromContext(r.Context())
 
-	if r.Method != http.MethodPost {
-		return handler.StatusMethodNotAllowed("Method not allowed")
-	}
-
 	var req signInRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
 		return err
@@ -71,10 +67,6 @@ type refreshTokenRequest struct {
 
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) error {
 	log := loggerctx.FromContext(r.Context())
-
-	if r.Method != http.MethodPost {
-		return handler.StatusMethodNotAllowed("Method not allowed")
-	}
 
 	var req refreshTokenRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
@@ -106,10 +98,6 @@ type logoutResponse struct {
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) error {
 	log := loggerctx.FromContext(r.Context())
-
-	if r.Method != http.MethodPost {
-		return handler.StatusMethodNotAllowed("Method not allowed")
-	}
 
 	var req logoutRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
