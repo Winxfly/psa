@@ -106,6 +106,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) error {
 
 	if err := h.authenticator.Logout(r.Context(), req.RefreshToken); err != nil {
 		log.Warn("auth_logout_failed", "error", err)
+		return handler.StatusInternalServerError("Failed to logout")
 	}
 
 	log.Info("auth_logout_success")

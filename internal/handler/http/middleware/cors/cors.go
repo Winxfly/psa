@@ -42,7 +42,7 @@ func (m *Middleware) Handler() func(http.Handler) http.Handler {
 
 			allowedOrigin, ok := m.getAllowedOrigin(origin)
 			if !ok {
-				next.ServeHTTP(w, r)
+				w.WriteHeader(http.StatusForbidden)
 				return
 			}
 

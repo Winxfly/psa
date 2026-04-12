@@ -652,7 +652,7 @@ func TestCORSMiddleware_OriginValidation_StatusCode(t *testing.T) {
 		expectedStatus int
 	}{
 		{"allowed_origin", "http://localhost:3000", http.StatusOK},
-		{"disallowed_origin", "https://evil.com", http.StatusOK},
+		{"disallowed_origin", "https://evil.com", http.StatusForbidden},
 		{"no_origin", "", http.StatusOK},
 	}
 

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -22,6 +23,19 @@ type V1Handlers struct {
 
 // NewRouter creates a root router, installs middleware, and connects API versions.
 func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenValidator, corsConfig config.CORS) (http.Handler, error) {
+	if handlers.AuthPublic == nil {
+		return nil, fmt.Errorf("NewRouter: nil AuthPublic handler")
+	}
+	if handlers.ProfessionPublic == nil {
+		return nil, fmt.Errorf("NewRouter: nil ProfessionPublic handler")
+	}
+	if handlers.ProfessionAdmin == nil {
+		return nil, fmt.Errorf("NewRouter: nil ProfessionAdmin handler")
+	}
+	if handlers.Trend == nil {
+		return nil, fmt.Errorf("NewRouter: nil Trend handler")
+	}
+
 	mw, err := middleware.NewManager(log, tokenValidator, corsConfig)
 	if err != nil {
 		return nil, err
