@@ -47,3 +47,19 @@ packages:
       ScrapingProvider:
     config:
       dir: internal/service/cron/mocks
+  
+  # Public handlers v1
+  psa/internal/handler/http/v1/handler/public:
+    interfaces:
+      Authenticator:
+      ProfessionProvider:
+      TrendProvider:
+    config:
+      dir: internal/handler/http/v1/handler/public/mocks
+
+  # Admin handlers v1
+  psa/internal/handler/http/v1/handler/admin:
+    interfaces:
+      ProfessionAdminAccesser:
+    config:
+      dir: internal/handler/http/v1/handler/admin/mocks
