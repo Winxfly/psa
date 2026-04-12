@@ -3,6 +3,7 @@ package public
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"psa/internal/domain"
 	"psa/internal/handler/http/v1/handler"
@@ -43,6 +44,13 @@ func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	if strings.TrimSpace(req.Email) == "" {
+		return handler.StatusBadRequest("Email is required")
+	}
+	if strings.TrimSpace(req.Password) == "" {
+		return handler.StatusBadRequest("Password is required")
+	}
+
 	tokenPair, err := h.authenticator.Signin(r.Context(), req.Email, req.Password)
 	if err != nil {
 		log.Warn("auth_signin_failed", "reason", "invalid_credentials")
@@ -73,6 +81,10 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	if strings.TrimSpace(req.RefreshToken) == "" {
+		return handler.StatusBadRequest("Refresh token is required")
+	}
+
 	tokenPair, err := h.authenticator.RefreshTokens(r.Context(), req.RefreshToken)
 	if err != nil {
 		log.Warn("auth_token_refresh_failed", "reason", "invalid_token")
@@ -84,6 +96,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) error {
 		RefreshToken: tokenPair.RefreshToken,
 	}
 
+	log.Info("auth_token_refresh_success")
 	handler.RespondJSON(w, http.StatusOK, resp)
 	return nil
 }
@@ -102,6 +115,10 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) error {
 	var req logoutRequest
 	if err := handler.DecodeJSON(r, &req); err != nil {
 		return err
+	}
+
+	if strings.TrimSpace(req.RefreshToken) == "" {
+		return handler.StatusBadRequest("Refresh token is required")
 	}
 
 	if err := h.authenticator.Logout(r.Context(), req.RefreshToken); err != nil {
