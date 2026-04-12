@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -78,9 +79,13 @@ func (h *ProfessionAdminHandler) Create(w http.ResponseWriter, r *http.Request) 
 
 	id, err := h.profession.CreateProfession(ctx, profession)
 	if err != nil {
-		log.Warn("profession_admin_create_conflict", "name", profession.Name)
+		if errors.Is(err, domain.ErrProfessionAlreadyExists) {
+			log.Warn("profession_admin_create_conflict", "name", profession.Name)
+			return handler.StatusConflict("Profession already exists")
+		}
 
-		return handler.StatusConflict("Profession already exists")
+		log.Error("profession_admin_create_failed", "name", profession.Name, slogx.Err(err))
+		return handler.StatusInternalServerError("Failed to create profession")
 	}
 
 	log.Info("profession_admin_create_success", "profession_id", id, "name", profession.Name)
