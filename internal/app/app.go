@@ -6,14 +6,17 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"psa/internal/app/closer"
 	"psa/internal/config"
 	controllerhttp "psa/internal/handler/http"
 	"psa/internal/handler/http/v1/handler/admin"
 	"psa/internal/handler/http/v1/handler/public"
+	"psa/internal/health"
 	"psa/internal/integration/hh"
 	"psa/internal/repository/postgresql"
 	"psa/internal/repository/redis"
@@ -35,17 +38,19 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("init storage: %w", err)
 	}
-	defer db.Close()
+	closer.Add("db", func(ctx context.Context) error {
+		// pgxpool.Close does not accept context; timeout is handled by closer.
+		db.Close()
+		return nil
+	})
 
 	cache, err := redis.New(cfg.Redis)
 	if err != nil {
 		return fmt.Errorf("init redis: %w", err)
 	}
-	defer func() {
-		if err := cache.Close(); err != nil {
-			log.Error("cache_close_failed", "error", err)
-		}
-	}()
+	closer.Add("cache", func(ctx context.Context) error {
+		return cache.Close()
+	})
 
 	// external services
 	hhClient := hh.NewAdapter(cfg, log)
@@ -70,6 +75,12 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	}
 
 	professionProvider := provider.New(db, db, db, db, cache, db)
+
+	// health checks
+	healthChecker := health.New(
+		health.NewDBCheck(db),
+		health.NewCacheCheck(cache),
+	)
 
 	jwtManager := jwtmanager.NewJWT(
 		cfg.JWT.Secret,
@@ -106,6 +117,7 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		httpHandlers,
 		authUC,
 		cfg.HTTPServer.CORS,
+		healthChecker,
 	)
 	if err != nil {
 		return fmt.Errorf("%s: init router: %w", op, err)
@@ -117,7 +129,7 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		httpserver.Port(cfg.HTTPServer.Port),
 		httpserver.ReadTimeout(cfg.HTTPServer.Timeout),
 		httpserver.WriteTimeout(cfg.HTTPServer.Timeout),
-		httpserver.ShutdownTimeout(30*time.Second),
+		httpserver.IdleTimeout(60*time.Second),
 	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -126,22 +138,19 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	if err := cronScheduler.Start(ctx); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
-	defer func() {
-		stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		defer cancel()
-		if err := cronScheduler.Stop(stopCtx); err != nil {
-			log.Error("cron_stop_failed", slogx.Err(err))
-		}
-	}()
+	closer.Add("cron", func(ctx context.Context) error {
+		return cronScheduler.Stop(ctx)
+	})
 
 	httpServer.Start()
-	log.Info("http_server_started", "address", cfg.HTTPServer.Host+":"+cfg.HTTPServer.Port)
+	log.Info("http_server_started", "addr", cfg.HTTPServer.Host+":"+cfg.HTTPServer.Port)
 
 	var shutdownReason string
 	select {
 	case <-ctx.Done():
 		shutdownReason = "signal"
 	case err = <-httpServer.Notify():
+		stop() // cancel signal context so resources don't see it
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			shutdownReason = "http_error"
 			log.Error("http_server_failed", slogx.Err(err))
@@ -150,11 +159,26 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		}
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Second SIGINT → immediate exit (no graceful shutdown).
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+		<-sig
+		os.Exit(1)
+	}()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	if err = httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Error("http server shutdown failed", slogx.Err(err))
+		log.Error("http_server_shutdown_failed", slogx.Err(err))
+	}
+
+	closeCtx, closeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer closeCancel()
+
+	if err = closer.CloseAll(closeCtx, log); err != nil {
+		log.Error("resource_close_failed", slogx.Err(err))
 	}
 
 	log.Info("app_stopped", "reason", shutdownReason)
