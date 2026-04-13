@@ -99,15 +99,47 @@ GET requests are shown without `-X GET` for brevity.
 make create-admin ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=supersecret
 ```
 
-#### Health check
+#### Health checks
+
+##### Liveness
 
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8080/health/live
 ```
 
 Response 200 OK:
+```json
+{
+  "status": "ok"
+}
 ```
-ok
+
+##### Readiness
+
+```bash
+curl http://localhost:8080/health/ready
+```
+
+Response 200 OK:
+```json
+{
+  "status": "ok",
+  "checks": {
+    "db": "ok",
+    "cache": "ok"
+  }
+}
+```
+
+Response 503 Service Unavailable:
+```json
+{
+  "status": "fail",
+  "checks": {
+    "db": "ok",
+    "cache": "fail"
+  }
+}
 ```
 
 ### Аутентификация
