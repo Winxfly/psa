@@ -7,10 +7,11 @@ import (
 )
 
 const (
-	_defaultAddr            = ":8080"
-	_defaultReadTimeout     = 5 * time.Second
-	_defaultWriteTimeout    = 5 * time.Second
-	_defaultShutdownTimeout = 3 * time.Second
+	defaultAddr            = ":8080"
+	defaultReadTimeout     = 5 * time.Second
+	defaultWriteTimeout    = 5 * time.Second
+	defaultIdleTimeout     = 60 * time.Second
+	defaultShutdownTimeout = 3 * time.Second
 )
 
 type Server struct {
@@ -20,16 +21,18 @@ type Server struct {
 	address         string
 	readTimeout     time.Duration
 	writeTimeout    time.Duration
+	idleTimeout     time.Duration
 	shutdownTimeout time.Duration
 }
 
 // New creates new http server with options.
 func New(handler http.Handler, opts ...Option) *Server {
 	s := &Server{
-		address:         _defaultAddr,
-		readTimeout:     _defaultReadTimeout,
-		writeTimeout:    _defaultWriteTimeout,
-		shutdownTimeout: _defaultShutdownTimeout,
+		address:         defaultAddr,
+		readTimeout:     defaultReadTimeout,
+		writeTimeout:    defaultWriteTimeout,
+		idleTimeout:     defaultIdleTimeout,
+		shutdownTimeout: defaultShutdownTimeout,
 		notify:          make(chan error, 1),
 	}
 
@@ -43,6 +46,7 @@ func New(handler http.Handler, opts ...Option) *Server {
 		Handler:      handler,
 		ReadTimeout:  s.readTimeout,
 		WriteTimeout: s.writeTimeout,
+		IdleTimeout:  s.idleTimeout,
 	}
 
 	return s
@@ -60,7 +64,11 @@ func (s *Server) Notify() <-chan error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
-	defer cancel()
+	// Only apply shutdownTimeout if caller didn't set a deadline.
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.shutdownTimeout)
+		defer cancel()
+	}
 	return s.httpServer.Shutdown(ctx)
 }

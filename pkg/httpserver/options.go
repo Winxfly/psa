@@ -30,3 +30,9 @@ func ShutdownTimeout(timeout time.Duration) Option {
 		s.shutdownTimeout = timeout
 	}
 }
+
+func IdleTimeout(timeout time.Duration) Option {
+	return func(s *Server) {
+		s.idleTimeout = timeout
+	}
+}
