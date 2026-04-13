@@ -12,6 +12,7 @@ import (
 	v1 "psa/internal/handler/http/v1"
 	"psa/internal/handler/http/v1/handler/admin"
 	"psa/internal/handler/http/v1/handler/public"
+	"psa/internal/health"
 )
 
 type V1Handlers struct {
@@ -22,7 +23,7 @@ type V1Handlers struct {
 }
 
 // NewRouter creates a root router, installs middleware, and connects API versions.
-func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenValidator, corsConfig config.CORS) (http.Handler, error) {
+func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenValidator, corsConfig config.CORS, healthChecker *health.Checker) (http.Handler, error) {
 	if handlers.AuthPublic == nil {
 		return nil, fmt.Errorf("NewRouter: nil AuthPublic handler")
 	}
@@ -67,13 +68,11 @@ func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenV
 		publicHandler.ServeHTTP(w, r)
 	})))
 
-	// health check
-	healthHandler := mw.DefaultChain().ThenFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
-	root.Handle("GET /health", healthHandler)
+	// health checks
+	livenessHandler := mw.DefaultChain().ThenFunc(healthChecker.LivenessHandler())
+	readinessHandler := mw.DefaultChain().ThenFunc(healthChecker.ReadinessHandler())
+	root.Handle("GET /health/live", livenessHandler)
+	root.Handle("GET /health/ready", readinessHandler)
 
 	return root, nil
 }
