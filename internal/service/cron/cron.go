@@ -100,9 +100,6 @@ func (c *Cron) Stop(ctx context.Context) error {
 
 	log.Info("scheduler_stopping")
 
-	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
 	done := make(chan error, 1)
 
 	go func() {
@@ -117,9 +114,21 @@ func (c *Cron) Stop(ctx context.Context) error {
 		}
 		log.Info("scheduler_stopped")
 		return nil
-	case <-shutdownCtx.Done():
-		log.Error("scheduler_shutdown_timeout")
-		return shutdownCtx.Err()
+
+	case <-ctx.Done():
+		log.Error("scheduler_shutdown_timeout", slogx.Err(ctx.Err()))
+
+		select {
+		case err := <-done:
+			if err != nil {
+				log.Warn("scheduler_shutdown_completed_late", slogx.Err(err))
+			} else {
+				log.Info("scheduler_shutdown_completed_late")
+			}
+		default:
+		}
+
+		return ctx.Err()
 	}
 }
 
