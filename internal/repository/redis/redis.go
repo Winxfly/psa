@@ -44,3 +44,7 @@ func New(cfg config.Redis) (*Cache, error) {
 func (c *Cache) Close() error {
 	return c.client.Close()
 }
+
+func (c *Cache) Ping(ctx context.Context) error {
+	return c.client.Ping(ctx).Err()
+}

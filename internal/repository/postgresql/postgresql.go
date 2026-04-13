@@ -44,3 +44,7 @@ func (s *Storage) Close() {
 		s.Pool.Close()
 	}
 }
+
+func (s *Storage) Ping(ctx context.Context) error {
+	return s.Pool.Ping(ctx)
+}
