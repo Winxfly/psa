@@ -13,6 +13,7 @@ import (
 	"psa/internal/handler/http/v1/handler/admin"
 	"psa/internal/handler/http/v1/handler/public"
 	"psa/internal/health"
+	appmetrics "psa/internal/metrics"
 )
 
 type V1Handlers struct {
@@ -23,7 +24,15 @@ type V1Handlers struct {
 }
 
 // NewRouter creates a root router, installs middleware, and connects API versions.
-func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenValidator, corsConfig config.CORS, healthChecker *health.Checker) (http.Handler, error) {
+func NewRouter(
+	log *slog.Logger,
+	handlers V1Handlers,
+	tokenValidator auth.TokenValidator,
+	corsConfig config.CORS,
+	healthChecker *health.Checker,
+	httpMetricsHandler http.Handler,
+	httpMetrics *appmetrics.HTTPMetrics,
+) (http.Handler, error) {
 	if handlers.AuthPublic == nil {
 		return nil, fmt.Errorf("NewRouter: nil AuthPublic handler")
 	}
@@ -36,8 +45,14 @@ func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenV
 	if handlers.Trend == nil {
 		return nil, fmt.Errorf("NewRouter: nil Trend handler")
 	}
+	if httpMetrics == nil {
+		return nil, fmt.Errorf("NewRouter: nil HTTP metrics")
+	}
+	if httpMetricsHandler == nil {
+		return nil, fmt.Errorf("NewRouter: nil HTTP metrics handler")
+	}
 
-	mw, err := middleware.NewManager(log, tokenValidator, corsConfig)
+	mw, err := middleware.NewManager(log, tokenValidator, corsConfig, httpMetrics)
 	if err != nil {
 		return nil, err
 	}
@@ -69,10 +84,11 @@ func NewRouter(log *slog.Logger, handlers V1Handlers, tokenValidator auth.TokenV
 	})))
 
 	// health checks
-	livenessHandler := mw.DefaultChain().ThenFunc(healthChecker.LivenessHandler())
-	readinessHandler := mw.DefaultChain().ThenFunc(healthChecker.ReadinessHandler())
+	livenessHandler := mw.SystemChain().ThenFunc(healthChecker.LivenessHandler())
+	readinessHandler := mw.SystemChain().ThenFunc(healthChecker.ReadinessHandler())
 	root.Handle("GET /health/live", livenessHandler)
 	root.Handle("GET /health/ready", readinessHandler)
+	root.Handle("GET /metrics", httpMetricsHandler)
 
 	return root, nil
 }

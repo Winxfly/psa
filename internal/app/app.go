@@ -18,6 +18,7 @@ import (
 	"psa/internal/handler/http/v1/handler/public"
 	"psa/internal/health"
 	"psa/internal/integration/hh"
+	appmetrics "psa/internal/metrics"
 	"psa/internal/repository/postgresql"
 	"psa/internal/repository/redis"
 	"psa/internal/service/auth"
@@ -77,10 +78,11 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 	professionProvider := provider.New(db, db, db, db, cache, db)
 
 	// health checks
-	healthChecker := health.New(
+	healthChecks := []health.Check{
 		health.NewDBCheck(db),
 		health.NewCacheCheck(cache),
-	)
+	}
+	healthChecker := health.New(healthChecks...)
 
 	jwtManager := jwtmanager.NewJWT(
 		cfg.JWT.Secret,
@@ -110,6 +112,10 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		ProfessionAdmin:  professionAdminHandler,
 		Trend:            trendHandler,
 	}
+	metricsRegistry := appmetrics.NewRegistry()
+	httpMetrics := appmetrics.NewHTTPMetrics(metricsRegistry)
+	metricsHandler := appmetrics.Handler(metricsRegistry)
+	dependencyProbe := health.NewProbe(log, 15*time.Second, httpMetrics, healthChecks...)
 
 	// HTTP Router
 	router, err := controllerhttp.NewRouter(
@@ -118,6 +124,8 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		authUC,
 		cfg.HTTPServer.CORS,
 		healthChecker,
+		metricsHandler,
+		httpMetrics,
 	)
 	if err != nil {
 		return fmt.Errorf("%s: init router: %w", op, err)
@@ -134,6 +142,8 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	go dependencyProbe.Start(ctx)
 
 	if err := cronScheduler.Start(ctx); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
