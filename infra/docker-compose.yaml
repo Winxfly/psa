@@ -1,13 +1,12 @@
 services:
   postgres:
     image: postgres:16.2
-    container_name: psa_postgres
     environment:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5433:5432"
+      - "${DB_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -20,9 +19,8 @@ services:
 
   redis:
     image: redis:8.2-alpine
-    container_name: psa_redis
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -71,7 +69,7 @@ services:
       - psa-network
     restart: no
 
-  app:
+  backend:
     build:
       context: .
       dockerfile: cmd/psa/Dockerfile
@@ -85,16 +83,71 @@ services:
     environment:
       CONFIG_PATH: ${CONFIG_PATH}
     ports:
-      - "8080:8080"
+      - "${APP_HOST_PORT:-8080}:${SRV_PORT:-8080}"
     volumes:
       - ./config:/config
-      - ./.env:/.env
+      - ./.env:/app/.env
+    networks:
+      - psa-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "${PROMETHEUS_HOST_PORT:-9090}:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - psa-network
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "${LOKI_HOST_PORT:-3100}:3100"
+    command:
+      - "-config.file=/etc/loki/config.yaml"
+    volumes:
+      - ./infra/loki/config.yaml:/etc/loki/config.yaml
+      - loki_data:/loki
+    networks:
+      - psa-network
+
+  alloy:
+    image: grafana/alloy:latest
+    command:
+      - "run"
+      - "/etc/alloy/config.alloy"
+    depends_on:
+      - loki
+    volumes:
+      - ./infra/alloy/config.alloy:/etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - psa-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "${GRAFANA_HOST_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - psa-network
 
 volumes:
   postgres_data:
   redis_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
 
 networks:
   psa-network:

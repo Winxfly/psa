@@ -1,21 +1,24 @@
-FROM golang:1.26.1-alpine as builder
+# syntax=docker/dockerfile:1.7
 
-WORKDIR /app
+FROM golang:1.26.1 AS builder
 
-ENV CGO_ENABLED=0
+WORKDIR /src
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY cmd/migrator ./cmd/migrator
 COPY internal/config ./internal/config
 
-RUN go build -ldflags="-s -w" -o migrator ./cmd/migrator
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/migrator ./cmd/migrator
 
-FROM alpine:3.20
+FROM gcr.io/distroless/static:nonroot
 
 WORKDIR /app
 
-COPY --from=builder /app/migrator .
+COPY --from=builder /out/migrator /app/migrator
 
-ENTRYPOINT ["./migrator"]
+ENTRYPOINT ["/app/migrator"]

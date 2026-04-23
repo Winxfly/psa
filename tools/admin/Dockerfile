@@ -1,19 +1,24 @@
-FROM golang:1.26.1-alpine AS builder
+# syntax=docker/dockerfile:1.7
 
-WORKDIR /app
+FROM golang:1.26.1 AS builder
+
+WORKDIR /src
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY internal/config ./internal/config
-COPY tools/admin/main.go .
+COPY tools/admin ./tools/admin
 
-RUN go build -o create-admin main.go
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/create-admin ./tools/admin
 
-FROM alpine:3.20
+FROM gcr.io/distroless/static:nonroot
 
 WORKDIR /app
 
-COPY --from=builder /app/create-admin .
+COPY --from=builder /out/create-admin /app/create-admin
 
-ENTRYPOINT ["./create-admin"]
+ENTRYPOINT ["/app/create-admin"]

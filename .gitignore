@@ -21,6 +21,7 @@
 psa
 bin/
 tmp/
+.cache/
 
 # Test coverage
 coverage.out
