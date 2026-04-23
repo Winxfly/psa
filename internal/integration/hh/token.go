@@ -145,6 +145,13 @@ func (tm *tokenManager) refresh(ctx context.Context) (string, error) {
 	}
 
 	tm.markFailed()
+
+	tm.logger.ErrorContext(ctx, op,
+		"event", "refresh_failed",
+		"attempts", maxRefreshAttempts,
+		"error", lastErr,
+	)
+
 	return "", fmt.Errorf("%s: refresh failed after retries: %w", op, lastErr)
 }
 
