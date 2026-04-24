@@ -4,6 +4,17 @@
 
 *Проект на стадии MVP и предназначен для демонстрации*
 
+## Оглавление
+
+- [О проекте](#about)
+- [Основные возможности](#features)
+- [Стек](#stack)
+- [Как это работает](#how-it-works)
+- [Запуск](#run)
+- [Observability](#observability)
+- [API](#api)
+
+<a id="about"></a>
 ### О проекте
 
 PSA автоматически собирает вакансии по заданным профессиям, извлекает требования к соискателям и агрегирует
@@ -12,6 +23,7 @@ PSA автоматически собирает вакансии по задан
 Источником данных является hh.ru API.
 Результаты доступны через REST API.
 
+<a id="features"></a>
 ### Основные возможности
 
 - Интеграция с hh.ru API (OAuth 2.0)
@@ -22,19 +34,21 @@ PSA автоматически собирает вакансии по задан
 - Публичные и административные API
 - Автоматическое обновление данных по расписанию
 
+<a id="stack"></a>
 ### Стек
 
 - Backend: Go, стандартный net/http, slog
 - БД: PostgreSQL (pgx)
 - Кэш: Redis
+- Observability: grafana, prometheus, loki, alloy
 - Миграции: [golang-migrate](https://github.com/golang-migrate/migrate)
 - Генерация SQL: [sqlc](https://github.com/sqlc-dev/sqlc)
 - Конфигурация: [cleanenv](https://github.com/ilyakaznacheev/cleanenv)
 - Контейнеризация: Docker & Docker Compose
 - Background jobs: [gocron](https://github.com/go-co-op/gocron)
-- Rate limiting для hh.ru API: rate.Limiter
 - Retry strategy: Equal Jitter
 
+<a id="how-it-works"></a>
 ### Как это работает
 
 - Для каждой профессии формируется поисковый запрос
@@ -44,11 +58,12 @@ PSA автоматически собирает вакансии по задан
 - Данные сохраняются в кэш или кэш и БД в зависимости от расписания
 - Результаты доступны через REST API
 
+<a id="run"></a>
 ## Запуск
 
-Для запуска необходимы: docker и docker compose, make
+Для запуска необходимы: docker, docker compose и make.
 
-Зарегистрировать приложение в [HeadHunter API](https://dev.hh.ru/) (необязательно для запуска, но сбор данных будет недоступен)
+Зарегистрировать приложение в [HeadHunter API](https://dev.hh.ru/) (необязательно для запуска, но сбор данных будет недоступен).
 
 Клонировать репозиторий:
 
@@ -62,28 +77,78 @@ git clone https://github.com/Winxfly/psa.git
 cd psa
 ```
 
-Создать файл .env по примеру .env.example:
+Создать файл `.env` по примеру `.env.example` и модифицировать:
 
 ```bash
 cp .env.example .env
 ```
-> **Для запуска и проверки работоспособности этого достаточно. Если не указать ключи для hh API, то сбор данных будет недоступен.**
+> **Для локального запуска и проверки этого достаточно. Если не указать ключи HH API, сбор данных будет недоступен.**
 
-Запуск PostgreSQL:
-```bash
-make postgres-up
-```
+### Базовый запуск
 
-Применение миграций БД:
-```bash
-make migrate-up
-```
+Поднимает backend и его зависимости (`postgres`, `redis`):
 
-Запуск приложения:
 ```bash
 make up
 ```
 
+Если БД ещё не инициализирована, отдельно применить миграции:
+
+```bash
+make migrate-up
+```
+
+### Observability
+
+Поднимает только observability stack:
+
+```bash
+make obs-up
+```
+
+### Полный локальный стек
+
+Поднимает backend, зависимости и observability:
+
+```bash
+make full-up
+```
+
+### Остановка
+
+```bash
+make down
+```
+
+<a id="observability"></a>
+## Observability
+
+Локальные адреса по умолчанию:
+
+- API: `http://localhost:8080`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000`
+  
+Если host ports были изменены в `.env`, адреса выше тоже изменятся.
+
+Grafana admin credentials можно переопределить в `.env`.
+
+Основные Grafana dashboards:
+
+- `PSA Service Overview`
+- `PSA Scraping Overview`
+
+### Dashboards
+
+#### Service Overview
+
+![PSA Service Overview](docs/images/psa_service_overview.png)
+
+#### Scraping Overview
+
+![PSA Scraping Overview](docs/images/psa_scraping_overview.png)
+
+<a id="api"></a>
 ## API
 
 All examples use curl.  
