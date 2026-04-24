@@ -456,11 +456,11 @@
               },
               {
                 "color": "orange",
-                "value": 100
+                "value": 300
               },
               {
                 "color": "red",
-                "value": 300
+                "value": 500
               }
             ]
           },
@@ -705,6 +705,33 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cache_get_failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 80
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 0
+              }
+            ]
           }
         ]
       },
@@ -740,9 +767,15 @@
           "legendFormat": "cache_miss",
           "queryType": "range",
           "refId": "B"
+        },
+        {
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | msg=\"cache_get_failed\" [1m]))",
+          "legendFormat": "cache_get_failed",
+          "queryType": "range",
+          "refId": "C"
         }
       ],
-      "title": "Cache Hit vs Miss Over Time",
+      "title": "Cache Hit, Miss and Read Error Over Time",
       "type": "timeseries"
     },
     {
