@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16.2
+    image: postgres:18.3
     environment:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -8,7 +8,7 @@ services:
     ports:
       - "${DB_HOST_PORT:-5433}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     networks:
       - psa-network
     healthcheck:
@@ -18,7 +18,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:8.2-alpine
+    image: redis:8.6.2-alpine
     ports:
       - "${REDIS_HOST_PORT:-6379}:6379"
     volumes:
