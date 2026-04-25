@@ -757,19 +757,19 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | msg=\"cache_hit\" [1m])) or vector(0)",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | msg=\"cache_hit\" [1m])) or vector(0)",
           "legendFormat": "cache_hit",
           "queryType": "range",
           "refId": "A"
         },
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | msg=\"cache_miss\" [1m])) or vector(0)",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | msg=\"cache_miss\" [1m])) or vector(0)",
           "legendFormat": "cache_miss",
           "queryType": "range",
           "refId": "B"
         },
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | msg=\"cache_get_failed\" [1m]))",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | msg=\"cache_get_failed\" [1m]))",
           "legendFormat": "cache_get_failed",
           "queryType": "range",
           "refId": "C"

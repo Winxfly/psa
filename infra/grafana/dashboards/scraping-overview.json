@@ -54,7 +54,7 @@
       },
       "targets": [
         {
-          "expr": "last_over_time({compose_service=\"backend\"} | logfmt | msg=\"scraping_completed\" | unwrap vacancies_total [7d])",
+          "expr": "last_over_time({compose_service=\"backend\"} | json | drop run_id,time,duration,profession_processed,profession_success,profession_failed,job_extracted,level,msg,op,service_name | unwrap vacancies_total [7d])",
           "legendFormat": "__auto",
           "queryType": "instant",
           "refId": "A"
@@ -116,7 +116,7 @@
       },
       "targets": [
         {
-          "expr": "last_over_time({compose_service=\"backend\"} | logfmt | msg=\"scraping_completed\" | unwrap profession_failed [7d])",
+          "expr": "last_over_time({compose_service=\"backend\"} | json | drop run_id,time,duration,profession_processed,profession_success,vacancies_total,job_extracted,level,msg,op,service_name | unwrap profession_failed [7d])",
           "legendFormat": "__auto",
           "queryType": "instant",
           "refId": "A"
@@ -191,7 +191,7 @@
       },
       "targets": [
         {
-          "expr": "last_over_time({compose_service=\"backend\"} | logfmt | msg=\"integration.hh.token.doRefreshRequest\" | event=~\"refresh_success|refresh_failed\" | label_format refresh_status=`{{ if eq .event \"refresh_success\" }}1{{ else }}0{{ end }}` | unwrap refresh_status [7d])",
+          "expr": "last_over_time({compose_service=\"backend\"} | json | msg=\"integration.hh.token.doRefreshRequest\" | event=~\"refresh_success|refresh_failed\" | label_format refresh_status=`{{ if eq .event \"refresh_success\" }}1{{ else }}0{{ end }}` | unwrap refresh_status [7d])",
           "legendFormat": "__auto",
           "queryType": "instant",
           "refId": "A"
@@ -253,7 +253,7 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | op=~\"integration\\\\.hh\\\\..*\" | level=~\"WARN|ERROR\" [24h])) or vector(0)",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | op=~\"integration\\\\.hh\\\\..*\" | level=~\"WARN|ERROR\" [24h])) or vector(0)",
           "legendFormat": "__auto",
           "queryType": "instant",
           "refId": "A"
@@ -341,7 +341,7 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | msg=\"scraping_completed\" [5m]))",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | msg=\"scraping_completed\" [5m]))",
           "legendFormat": "runs",
           "queryType": "range",
           "refId": "A"
@@ -429,7 +429,7 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | msg=\"profession_completed\" [5m]))",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | msg=\"profession_completed\" [5m]))",
           "legendFormat": "professions",
           "queryType": "range",
           "refId": "A"
@@ -462,7 +462,7 @@
       },
       "targets": [
         {
-          "expr": "{compose_service=\"backend\"} | logfmt | msg=\"scraping_completed\" | line_format \"run={{.run_id}} duration={{.duration}} processed={{.profession_processed}} success={{.profession_success}} failed={{.profession_failed}} vacancies={{.vacancies_total}}\"",
+          "expr": "{compose_service=\"backend\"} | json | msg=\"scraping_completed\" | line_format \"run={{.run_id}} duration={{.duration}} processed={{.profession_processed}} success={{.profession_success}} failed={{.profession_failed}} vacancies={{.vacancies_total}}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -549,7 +549,7 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | op=~\"integration\\\\.hh\\\\..*\" | level=~\"WARN|ERROR\" [5m])) or vector(0)",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | op=~\"integration\\\\.hh\\\\..*\" | level=~\"WARN|ERROR\" [5m])) or vector(0)",
           "legendFormat": "hh_errors",
           "queryType": "range",
           "refId": "A"
@@ -652,13 +652,13 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | msg=\"integration.hh.token.doRefreshRequest\" | event=\"refresh_token\" [5m]))",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | msg=\"integration.hh.token.doRefreshRequest\" | event=\"refresh_token\" [5m]))",
           "legendFormat": "refresh_token",
           "queryType": "range",
           "refId": "A"
         },
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | msg=\"integration.hh.token.doRefreshRequest\" | event=\"refresh_success\" [5m]))",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | msg=\"integration.hh.token.doRefreshRequest\" | event=\"refresh_success\" [5m]))",
           "legendFormat": "refresh_success",
           "queryType": "range",
           "refId": "B"
@@ -746,7 +746,7 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | logfmt | msg=\"integration.hh.hClient.fetchDataProfession\" | event=\"data_collected\" [5m]))",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | msg=\"integration.hh.hClient.fetchDataProfession\" | event=\"data_collected\" [5m]))",
           "legendFormat": "data_collected",
           "queryType": "range",
           "refId": "A"
