@@ -114,10 +114,36 @@ make obs-up
 make full-up
 ```
 
+### Production запуск
+
+Поднимает production stack с `Caddy` как reverse proxy:
+
+```bash
+make prod-up
+```
+
+Если БД ещё не инициализирована, отдельно применить миграции:
+
+```bash
+make prod-migrate-up
+```
+
+Создать администратора при необходимости:
+
+```bash
+make prod-create-admin ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=supersecret
+```
+
 ### Остановка
 
 ```bash
 make down
+```
+
+Для остановки production stack:
+
+```bash
+make prod-down
 ```
 
 <a id="observability"></a>
