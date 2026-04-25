@@ -1,4 +1,4 @@
-env: "local"
+env: "dev"
 
 storage_path:
   username: "psalocal"
