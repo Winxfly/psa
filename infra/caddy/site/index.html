@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PSA</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1720;
+        --panel: #17212b;
+        --text: #e5edf5;
+        --muted: #98a8b8;
+        --accent: #76c15f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at top right, rgba(118, 193, 95, 0.16), transparent 28%),
+          linear-gradient(180deg, #10161d 0%, var(--bg) 100%);
+        color: var(--text);
+        font: 16px/1.5 system-ui, sans-serif;
+      }
+
+      main {
+        max-width: 680px;
+        margin: 24px;
+        padding: 32px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 18px;
+        background: rgba(23, 33, 43, 0.92);
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 32px;
+      }
+
+      p {
+        margin: 0 0 14px;
+        color: var(--muted);
+      }
+
+      code {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>PSA reverse proxy is ready</h1>
+      <p>The backend is expected behind <code>/api/*</code>.</p>
+      <p>Replace this placeholder page with the frontend build or switch the root handler in the Caddyfile to your frontend container when it is ready.</p>
+    </main>
+  </body>
+</html>

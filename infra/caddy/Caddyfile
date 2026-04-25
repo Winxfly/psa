@@ -1,0 +1,32 @@
+{
+	email {$CADDY_EMAIL}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle /health/live {
+		reverse_proxy backend:8080
+	}
+
+	handle /health/ready {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		root * /usr/share/caddy
+		try_files {path} /index.html
+		file_server
+	}
+}

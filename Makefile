@@ -1,4 +1,5 @@
 DOCKER_COMPOSE := docker compose --project-directory . --env-file .env -f infra/docker-compose.yaml
+DOCKER_COMPOSE_PROD := docker compose --project-directory . --env-file .env -f infra/docker-compose.prod.yaml
 
 # Основные dev-команды
 
@@ -10,9 +11,17 @@ up:
 full-up:
 	$(DOCKER_COMPOSE) up --build --remove-orphans backend prometheus grafana loki alloy
 
+# Поднять production-стек
+prod-up:
+	$(DOCKER_COMPOSE_PROD) up --build -d --remove-orphans caddy backend prometheus grafana loki alloy
+
 # Остановить все контейнеры
 down:
 	$(DOCKER_COMPOSE) down
+
+# Остановить production-стек
+prod-down:
+	$(DOCKER_COMPOSE_PROD) down
 
 # Поднять observability стек
 obs-up:
@@ -78,6 +87,10 @@ grafana-down:
 migrate-up:
 	$(DOCKER_COMPOSE) run --rm migrator --migrations-path=/migrations --up
 
+# Запуск миграций в production-стеке, но должен быть поднят postgres
+prod-migrate-up:
+	$(DOCKER_COMPOSE_PROD) run --rm migrator --migrations-path=/migrations --up
+
 # Откатить все миграции, должен быть поднят postgres
 migrate-down:
 	$(DOCKER_COMPOSE) run --rm migrator --migrations-path=/migrations --down
@@ -96,6 +109,13 @@ build-create-admin:
 # Создать админа. Пример: make create-admin ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=supersecret
 create-admin: build-create-admin
 	$(DOCKER_COMPOSE) run --rm \
+		-e ADMIN_EMAIL=$(ADMIN_EMAIL) \
+		-e ADMIN_PASSWORD=$(ADMIN_PASSWORD) \
+		create-admin
+
+# Создать админа в production-стеке
+prod-create-admin: build-create-admin
+	$(DOCKER_COMPOSE_PROD) run --rm \
 		-e ADMIN_EMAIL=$(ADMIN_EMAIL) \
 		-e ADMIN_PASSWORD=$(ADMIN_PASSWORD) \
 		create-admin
