@@ -163,8 +163,6 @@ services:
 
 volumes:
   postgres_data:
-    external: true
-    name: psa_postgres_data
   redis_data:
   prometheus_data:
   loki_data:
