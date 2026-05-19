@@ -775,7 +775,7 @@
           "refId": "C"
         }
       ],
-      "title": "Cache Hit, Miss and Read Error Over Time",
+      "title": "Backend Cache Events Over Time",
       "type": "timeseries"
     },
     {

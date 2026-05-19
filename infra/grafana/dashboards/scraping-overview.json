@@ -54,7 +54,7 @@
       },
       "targets": [
         {
-          "expr": "last_over_time({compose_service=\"backend\"} | json | drop run_id,time,duration,profession_processed,profession_success,profession_failed,job_extracted,level,msg,op,service_name | unwrap vacancies_total [7d])",
+          "expr": "last_over_time({compose_service=\"backend\"} |= \"vacancies_total\" | json | drop run_id,time,duration,profession_processed,profession_success,profession_failed,request_id,user_id,component,job_extracted,job,level,msg,op,service_name | unwrap vacancies_total [7d])",
           "legendFormat": "__auto",
           "queryType": "instant",
           "refId": "A"
@@ -116,7 +116,7 @@
       },
       "targets": [
         {
-          "expr": "last_over_time({compose_service=\"backend\"} | json | drop run_id,time,duration,profession_processed,profession_success,vacancies_total,job_extracted,level,msg,op,service_name | unwrap profession_failed [7d])",
+          "expr": "last_over_time({compose_service=\"backend\"} |= \"vacancies_total\" | json | drop run_id,time,duration,profession_processed,profession_success,vacancies_total,request_id,user_id,component,job_extracted,job,level,msg,op,service_name | unwrap profession_failed [7d])",
           "legendFormat": "__auto",
           "queryType": "instant",
           "refId": "A"
@@ -130,7 +130,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Green: the latest terminal HH token refresh event was refresh_success. Red: the latest terminal HH token refresh event was refresh_failed.",
+      "description": "Shows the latest terminal HH token refresh event in the last 7 days. No recent refresh means the token did not require refresh during this window; it is not an error by itself. HH integration health is better checked by scraping success and HH errors panels.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -144,6 +144,9 @@
                 },
                 "1": {
                   "text": "Success"
+                },
+                "2": {
+                  "text": "No recent refresh"
                 }
               },
               "type": "value"
@@ -159,6 +162,10 @@
               {
                 "color": "green",
                 "value": 1
+              },
+              {
+                "color": "gray",
+                "value": 2
               }
             ]
           },
@@ -191,13 +198,13 @@
       },
       "targets": [
         {
-          "expr": "last_over_time({compose_service=\"backend\"} | json | msg=\"integration.hh.token.doRefreshRequest\" | event=~\"refresh_success|refresh_failed\" | label_format refresh_status=`{{ if eq .event \"refresh_success\" }}1{{ else }}0{{ end }}` | unwrap refresh_status [7d])",
+          "expr": "last_over_time({compose_service=\"backend\"} | json | msg=\"integration.hh.token.doRefreshRequest\" | event=~\"refresh_success|refresh_failed\" | label_format refresh_status=`{{ if eq .event \"refresh_success\" }}1{{ else }}0{{ end }}` | unwrap refresh_status [7d]) or vector(2)",
           "legendFormat": "__auto",
           "queryType": "instant",
           "refId": "A"
         }
       ],
-      "title": "HH Token Refresh Status",
+      "title": "HH Token Refresh Last Event",
       "type": "stat"
     },
     {
@@ -341,7 +348,7 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({compose_service=\"backend\"} | json | msg=\"scraping_completed\" [5m]))",
+          "expr": "sum(count_over_time({compose_service=\"backend\"} |= \"vacancies_total\" | json | msg=\"scraping_completed\" [5m]))",
           "legendFormat": "runs",
           "queryType": "range",
           "refId": "A"
@@ -462,7 +469,7 @@
       },
       "targets": [
         {
-          "expr": "{compose_service=\"backend\"} | json | msg=\"scraping_completed\" | line_format \"run={{.run_id}} duration={{.duration}} processed={{.profession_processed}} success={{.profession_success}} failed={{.profession_failed}} vacancies={{.vacancies_total}}\"",
+          "expr": "{compose_service=\"backend\"} |= \"vacancies_total\" | json | msg=\"scraping_completed\" | line_format \"run={{.run_id}} duration={{div (div .duration 1000000000) 60}}m {{mod (div .duration 1000000000) 60}}s processed={{.profession_processed}} success={{.profession_success}} failed={{.profession_failed}} vacancies={{.vacancies_total}}\"",
           "queryType": "range",
           "refId": "A"
         }
