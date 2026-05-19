@@ -1,6 +1,32 @@
 DOCKER_COMPOSE := docker compose --project-directory . --env-file .env -f infra/docker-compose.yaml
 DOCKER_COMPOSE_PROD := docker compose --project-directory . --env-file .env -f infra/docker-compose.prod.yaml
 
+# Основные prod-команды
+
+# Поднять production-стек
+prod-up:
+	$(DOCKER_COMPOSE_PROD) up --build -d --remove-orphans caddy backend prometheus grafana loki alloy
+
+# Остановить production-стек
+prod-down:
+	$(DOCKER_COMPOSE_PROD) down
+
+# Показать состояние production-стека
+prod-ps:
+	$(DOCKER_COMPOSE_PROD) ps
+
+# Смотреть логи production-стека
+prod-logs:
+	$(DOCKER_COMPOSE_PROD) logs -f
+
+# Смотреть логи backend в production-стеке
+prod-logs-backend:
+	$(DOCKER_COMPOSE_PROD) logs -f backend
+
+# Перезапустить backend в production-стеке
+prod-restart-backend:
+	$(DOCKER_COMPOSE_PROD) restart backend
+
 # Основные dev-команды
 
 # Поднять backend, db, cache
@@ -11,17 +37,9 @@ up:
 full-up:
 	$(DOCKER_COMPOSE) up --build --remove-orphans backend prometheus grafana loki alloy
 
-# Поднять production-стек
-prod-up:
-	$(DOCKER_COMPOSE_PROD) up --build -d --remove-orphans caddy backend prometheus grafana loki alloy
-
 # Остановить все контейнеры
 down:
 	$(DOCKER_COMPOSE) down
-
-# Остановить production-стек
-prod-down:
-	$(DOCKER_COMPOSE_PROD) down
 
 # Поднять observability стек
 obs-up:
@@ -30,8 +48,6 @@ obs-up:
 # Остановить observability стек
 obs-down:
 	$(DOCKER_COMPOSE) stop prometheus grafana loki alloy
-
-# Управление сервисами
 
 # Поднять postgres
 postgres-up:

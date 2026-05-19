@@ -12,7 +12,7 @@ services:
     networks:
       - psa-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -27,7 +27,7 @@ services:
       - psa-network
     command: redis-server --appendonly yes --save 900 1 --save 300 10 --save 60 10000
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -47,7 +47,7 @@ services:
       - ./config:/config
       - ./migrations:/migrations
       - ./.env:/app/.env
-    command: ["--migrations-path=/migrations"]
+    command: [ "--migrations-path=/migrations" ]
     networks:
       - psa-network
 
@@ -131,7 +131,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "${GRAFANA_HOST_PORT:-3000}:3000"
+      - "${GRAFANA_HOST_PORT:-3001}:3000"
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
