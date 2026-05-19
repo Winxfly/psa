@@ -203,7 +203,7 @@ func (h *ProfessionAdminHandler) triggerScraping(
 			return
 		}
 
-		taskLog.Info("scraping_completed", "mode", mode)
+		taskLog.Info("scraping_task_completed", "mode", mode)
 	}()
 
 	handler.RespondJSON(w, http.StatusAccepted, map[string]string{
