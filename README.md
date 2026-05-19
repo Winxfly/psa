@@ -1,21 +1,22 @@
-## PSA - Professional Skills Analyzer
+# PSA - Professional Skills Analyzer
 
 Сервис для анализа востребованных профессиональных навыков на основе данных hh.ru API.
 
-*Проект на стадии MVP и предназначен для демонстрации*
+*Проект на стадии MVP*
 
 ## Оглавление
 
 - [О проекте](#about)
-- [Основные возможности](#features)
+- [Что умеет сервис](#features)
 - [Стек](#stack)
 - [Как это работает](#how-it-works)
+- [Frontend](#frontend)
 - [Запуск](#run)
 - [Observability](#observability)
-- [API](#api)
+- [Документация](#docs)
 
 <a id="about"></a>
-### О проекте
+## О проекте
 
 PSA автоматически собирает вакансии по заданным профессиям, извлекает требования к соискателям и агрегирует
 статистику по навыкам.
@@ -24,44 +25,68 @@ PSA автоматически собирает вакансии по задан
 Результаты доступны через REST API.
 
 <a id="features"></a>
-### Основные возможности
+## Что умеет сервис
 
 - Интеграция с hh.ru API (OAuth 2.0)
-- Извлечение навыков: формальные навыки из поля "ключевые навыки" и неявные навыки из описания вакансии с помощью
-алгоритма [n-gram](https://en.wikipedia.org/wiki/N-gram)
+- Сбор вакансий с hh.ru API по заранее заданным профессиям
+- Извлечение ключевых навыков из вакансий
+- Поиск неявных навыков в описаниях вакансий с помощью алгоритма [n-gram](https://en.wikipedia.org/wiki/N-gram) на основе ключевых навыков
 - Агрегация навыков по частоте упоминаний
-- Аутентификация и авторизация JWT
-- Публичные и административные API
-- Автоматическое обновление данных по расписанию
+- Отслеживание динамики количества вакансий
+- REST API для получения данных
+- Административное API для управления профессиями и ручного запуска сбора данных
+- Аутентификация и авторизация JWT для администратора
+- Автоматический сбор данных по расписанию
 
 <a id="stack"></a>
-### Стек
+## Стек
 
 - Backend: Go, стандартный net/http, slog
+- Reverse proxy: Caddy
 - БД: PostgreSQL (pgx)
 - Кэш: Redis
-- Observability: grafana, prometheus, loki, alloy
+- Observability: Grafana, Prometheus, Loki, Alloy
 - Миграции: [golang-migrate](https://github.com/golang-migrate/migrate)
 - Генерация SQL: [sqlc](https://github.com/sqlc-dev/sqlc)
 - Конфигурация: [cleanenv](https://github.com/ilyakaznacheev/cleanenv)
 - Контейнеризация: Docker & Docker Compose
 - Background jobs: [gocron](https://github.com/go-co-op/gocron)
-- Retry strategy: Equal Jitter
+- Retry strategy для hh.ru API: Equal Jitter
+- Тестирование: unit/integration tests, [testcontainers-go](https://github.com/testcontainers/testcontainers-go)
+- Генерация моков: [mockery](https://github.com/vektra/mockery)
+- Линтинг: [golangci-lint](https://github.com/golangci/golangci-lint)
+
+Многие вещи в проекте можно было сделать проще, но я сознательно сделал его шире, чтобы на практике разобраться с разными частями backend-разработки.
+
 
 <a id="how-it-works"></a>
-### Как это работает
+## Как это работает
 
-- Для каждой профессии формируется поисковый запрос
-- Загружаются вакансии с hh.ru API
-- Извлекаются: формальные навыки, навыки из текста вакансий
-- Навыки агрегируются по частоте
-- Данные сохраняются в кэш или кэш и БД в зависимости от расписания
-- Результаты доступны через REST API
+- Для каждой профессии хранится поисковый запрос
+- По расписанию или вручную запускается сбор вакансий с hh.ru API
+- Из вакансий извлекаются ключевые навыки и навыки из текста описаний
+- Найденные навыки агрегируются по частоте упоминаний
+- Результаты сохраняются в Redis и PostgreSQL в зависимости от сценария сбора и назначения данных
+- Обработанные данные доступны через REST API
+
+<a id="frontend"></a>
+## Frontend
+
+Для проекта есть отдельный frontend-клиент: [psa-front](https://github.com/Winxfly/psa-front).
+
+![Profession overview](docs/images/frontend-profession.png)
+
+<details>
+<summary>Сравнение профессий</summary>
+
+![Trends](docs/images/frontend-trends.png)
+
+</details>
 
 <a id="run"></a>
 ## Запуск
 
-Для запуска необходимы: docker, docker compose и make.
+Для запуска необходимы: Docker, Docker Compose и Make.
 
 Зарегистрировать приложение в [HeadHunter API](https://dev.hh.ru/) (необязательно для запуска, но сбор данных будет недоступен).
 
@@ -77,510 +102,35 @@ git clone https://github.com/Winxfly/psa.git
 cd psa
 ```
 
-Создать файл `.env` по примеру `.env.example` и модифицировать:
+Создать файл `.env` по примеру `.env.example` и модифицировать, следуя инструкциям в комментариях файла:
 
 ```bash
 cp .env.example .env
 ```
-> **Для локального запуска и проверки этого достаточно. Если не указать ключи HH API, сбор данных будет недоступен.**
 
-### Базовый запуск
+> Наличие `.env` файла обязательно, иначе намеренное падение при старте сервиса.
 
-Поднимает backend и его зависимости (`postgres`, `redis`):
+> Для локального запуска и ограниченной проверки этого достаточно. Если не указать ключи HH API, сбор данных будет недоступен.
 
-```bash
-make up
-```
+Далее варианты запуска:
 
-Если БД ещё не инициализирована, отдельно применить миграции:
-
-```bash
-make migrate-up
-```
-
-### Observability
-
-Поднимает только observability stack:
-
-```bash
-make obs-up
-```
-
-### Полный локальный стек
-
-Поднимает backend, зависимости и observability:
-
-```bash
-make full-up
-```
-
-### Production запуск
-
-Поднимает production stack с `Caddy` как reverse proxy:
-
-```bash
-make prod-up
-```
-
-Если БД ещё не инициализирована, отдельно применить миграции:
-
-```bash
-make prod-migrate-up
-```
-
-Создать администратора при необходимости:
-
-```bash
-make prod-create-admin ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=supersecret
-```
-
-### Остановка
-
-```bash
-make down
-```
-
-Для остановки production stack:
-
-```bash
-make prod-down
-```
+- [Local development](docs/local-development.md)
+- [Production](docs/production.md)
 
 <a id="observability"></a>
 ## Observability
 
-Локальные адреса по умолчанию:
-
-- API: `http://localhost:8080`
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3000`
-  
-Если host ports были изменены в `.env`, адреса выше тоже изменятся.
-
-Grafana admin credentials можно переопределить в `.env`.
-
-Основные Grafana dashboards:
-
-- `PSA Service Overview`
-- `PSA Scraping Overview`
-
-### Dashboards
-
-#### Service Overview
+В проекте есть observability stack: Prometheus, Grafana, Loki и Alloy.
 
 ![PSA Service Overview](docs/images/psa_service_overview.png)
 
-#### Scraping Overview
-
-![PSA Scraping Overview](docs/images/psa_scraping_overview.png)
-
-<a id="api"></a>
-## API
-
-All examples use curl.  
-GET requests are shown without `-X GET` for brevity.
-
-### Roles
-
-- **admin** — access to administrative API
-
-#### Создать админа (по необходимости)
-
-```bash
-make create-admin ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=supersecret
-```
-
-#### Health checks
-
-##### Liveness
-
-```bash
-curl http://localhost:8080/health/live
-```
-
-Response 200 OK:
-```json
-{
-  "status": "ok"
-}
-```
-
-##### Readiness
-
-```bash
-curl http://localhost:8080/health/ready
-```
-
-Response 200 OK:
-```json
-{
-  "status": "ok",
-  "checks": {
-    "db": "ok",
-    "cache": "ok"
-  }
-}
-```
-
-Response 503 Service Unavailable:
-```json
-{
-  "status": "fail",
-  "checks": {
-    "db": "ok",
-    "cache": "fail"
-  }
-}
-```
-
-### Аутентификация
-
-#### Sign in
-
-Аутентификация пользователя и получение пары JWT-токенов
-
-##### POST /api/v1/auth/signin
-
-Request body:
-```json
-{
-  "email": "admin@example.com",
-  "password": "supersecret"
-}
-```
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/signin \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@example.com",
-    "password": "supersecret"
-  }'
-```
-
-Response 200 OK:
-```json
-{
-  "access_token": "<jwt-access-token>",
-  "refresh_token": "<jwt-refresh-token>"
-}
-```
-
-#### Refresh token
-
-Обновление access token с помощью refresh token
-
-##### POST /api/v1/auth/refresh
-
-Request body:
-```json
-{
-  "refresh_token": "<refresh-token>"
-}
-```
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d '{
-    "refresh_token": "<refresh-token>"
-  }'
-```
-
-Response 200 OK:
-```json
-{
-  "access_token": "<new-access-token>",
-  "refresh_token": "<new-refresh-token>"
-}
-```
-
-#### Logout
-
-Инвалидация refresh token
-
-##### POST /api/v1/auth/logout
-
-Request body:
-```json
-{
-  "refresh_token": "<refresh-token>"
-}
-```
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/logout \
-  -H "Content-Type: application/json" \
-  -d '{
-    "refresh_token": "<refresh-token>"
-  }'
-```
-
-Response 200 OK:
-```json
-{
-  "message": "Successfully logged out"
-}
-```
-
-### Публичные API
-
-#### Получить список активных профессий
-
-##### GET /api/v1/professions
-
-```bash
-curl http://localhost:8080/api/v1/professions
-```
-Response 200 OK:
-```json
-[
-  {
-    "id": "6e8b30bd-8ea9-4906-89f9-00dd1c1e6653",
-    "name": "Go Developer",
-    "vacancy_query": "go developer OR golang"
-  }
-]
-```
-
-#### Получить последние агрегированные данные о профессии
-
-##### GET /api/v1/professions/{id}/latest
-
-```bash
-curl http://localhost:8080/api/v1/professions/6e8b30bd-8ea9-4906-89f9-00dd1c1e6653/latest
-```
-
-Response 200 OK:
-```json
-{
-  "profession_id": "6e8b30bd-8ea9-4906-89f9-00dd1c1e6653",
-  "profession_name": "Go Developer",
-  "scraped_at": "2026-01-28T04:54:23Z",
-  "vacancy_count": 352,
-  "formal_skills": [
-    {
-      "skill": "golang",
-      "count": 212
-    }
-  ],
-  "extracted_skills": [
-    {
-      "skill": "go",
-      "count": 563
-    }
-  ]
-}
-```
-
-#### Получить последние агрегированные данные о профессии и динамику вакансий за всё время
-
-##### GET /api/v1/professions/{id}/latest?trend=true
-
-```bash
-curl http://localhost:8080/api/v1/professions/6e8b30bd-8ea9-4906-89f9-00dd1c1e6653/latest?trend=true
-```
-
-Response 200 OK:
-```json
-{
-  "profession_id": "6e8b30bd-8ea9-4906-89f9-00dd1c1e6653",
-  "profession_name": "Go Developer",
-  "scraped_at": "2026-01-28T04:54:23Z",
-  "vacancy_count": 352,
-  "formal_skills": [
-    {
-      "skill": "golang",
-      "count": 212
-    }
-  ],
-  "extracted_skills": [
-    {
-      "skill": "go",
-      "count": 563
-    }
-  ],
-  "trend": [
-    {
-      "date": "2026-03-01T11:56:31Z",
-      "vacancy_count": 330
-    },
-    {
-      "date": "2026-03-02T00:40:15Z",
-      "vacancy_count": 323
-    }
-  ]
-}
-```
-
-#### Получить динамику вакансий о профессии за всё время
-
-##### GET /api/v1/professions/{id}/trend
-
-```bash
-curl http://localhost:8080/api/v1/professions/6e8b30bd-8ea9-4906-89f9-00dd1c1e6653/trend
-```
-
-Response 200 OK:
-```json
-{
-  "profession_id": "6e8b30bd-8ea9-4906-89f9-00dd1c1e6653",
-  "profession_name": "Go Developer",
-  "data": [
-    {
-      "date": "2026-03-01T11:56:31Z",
-      "vacancy_count": 330
-    },
-    {
-      "date": "2026-03-02T00:40:15Z",
-      "vacancy_count": 323
-    }
-  ]
-}
-```
-
-### Административные API
-Все административные эндпоинты требуют access token с ролью admin
-
-#### Авторизация
-
-Заголовок:
-```
-Authorization: Bearer <access-token>
-```
-
-#### Получить список всех профессий
-
-Возвращает активные и неактивные профессии, используемые для фоновой обработки
-
-##### GET /api/v1/admin/professions
-
-```bash
-curl http://localhost:8080/api/v1/admin/professions \
-  -H "Authorization: Bearer <access-token>"
-```
-
-Response 200 OK:
-```json
-[
-  {
-    "id": "6e8b30bd-8ea9-4906-89f9-00dd1c1e6653",
-    "name": "Go Developer",
-    "vacancy_query": "go developer OR golang",
-    "is_active": true
-  }
-]
-```
-Ошибка авторизации (невалидный токен)
-```bash
-curl http://localhost:8080/api/v1/admin/professions \
-  -H "Authorization: Bearer invalid-token"
-```
-
-Response 401 Unauthorized:
-```json
-{
-  "error": "Invalid token"
-}
-```
-
-#### Создать профессию
-
-##### POST /api/v1/admin/professions
-
-Request body:
-```json
-{
-  "name": "C# Developer",
-  "vacancy_query": "C#"
-}
-```
-
-```bash
-curl -X POST http://localhost:8080/api/v1/admin/professions \
-  -H "Authorization: Bearer <access-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "C# Developer",
-    "vacancy_query": "C#"
-  }'
-```
-
-Response 201 Created:
-```json
-{
-  "id": "e337f9e7-c0b6-4089-8b66-19ad3ef58ad0",
-  "name": "C# Developer",
-  "vacancy_query": "C#",
-  "is_active": true
-}
-```
-
-#### Обновить профессию
-
-##### PUT /api/v1/admin/professions/{id}
-
-Request body:
-```json
-{
-  "name": "C# Developer",
-  "vacancy_query": "C#",
-  "is_active": true
-}
-
-```
-
-```bash
-curl -X PUT http://localhost:8080/api/v1/admin/professions/e337f9e7-c0b6-4089-8b66-19ad3ef58ad0 \
-  -H "Authorization: Bearer <access-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "C# Developer",
-    "vacancy_query": "C#",
-    "is_active": true
-  }'
-```
-
-Response 200 OK:
-```json
-{
-  "id": "e337f9e7-c0b6-4089-8b66-19ad3ef58ad0",
-  "name": "C# Developer",
-  "vacancy_query": "C#",
-  "is_active": true
-}
-```
-
-#### Запуск сбора данных и сохранение данных в БД (все профессии)
-
-##### POST /api/v1/admin/scraping/archive
-
-```bash
-curl -X POST http://localhost:8080/api/v1/admin/scraping/archive \
-  -H "Authorization: Bearer <access-token>"
-```
-
-Response 202 Accepted:
-```json
-{
-  "status": "started",
-  "mode": "archive"
-}
-```
-
-#### Запуск сбора данных и сохранение данных в кэш (все профессии)
-
-##### POST /api/v1/admin/scraping/cache
-
-```bash
-curl -X POST http://localhost:8080/api/v1/admin/scraping/cache \
-  -H "Authorization: Bearer <access-token>"
-```
-
-Response 202 Accepted:
-```json
-{
-  "status": "started",
-  "mode": "cache"
-}
-```
+Подробнее: [Observability](docs/observability.md)
+
+<a id="docs"></a>
+## Документация
+
+- [Local development](docs/local-development.md)
+- [Production](docs/production.md)
+- [API examples](docs/api.md)
+- [Observability](docs/observability.md)
+- [Makefile commands](Makefile)
