@@ -29,3 +29,4 @@ coverage.html
 
 # Docker
 *.log
+backlog.md

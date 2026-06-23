@@ -1,5 +1,6 @@
 DOCKER_COMPOSE := docker compose --project-directory . --env-file .env -f infra/docker-compose.yaml
 DOCKER_COMPOSE_PROD := docker compose --project-directory . --env-file .env -f infra/docker-compose.prod.yaml
+MIGRATE_VERSION := v4.18.3
 
 # Основные prod-команды
 
@@ -98,6 +99,14 @@ grafana-down:
 	$(DOCKER_COMPOSE) stop grafana
 
 # Миграции и админка
+
+# Создать новые файлы миграции. Пример: make migrate-create NAME=add_skill_corpus
+migrate-create:
+	@test -n "$(NAME)" || (echo "Usage: make migrate-create NAME=add_skill_corpus" && exit 1)
+	docker run --rm \
+		-v $(CURDIR)/migrations:/migrations \
+		migrate/migrate:$(MIGRATE_VERSION) \
+		create -ext sql -dir /migrations -seq $(NAME)
 
 # Запуск миграций, но должен быть поднят postgres
 migrate-up:
