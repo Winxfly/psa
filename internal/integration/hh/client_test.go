@@ -133,10 +133,11 @@ func TestClient_CalculateWait(t *testing.T) {
 		minDelay time.Duration
 		maxDelay time.Duration
 	}{
-		{"attempt 0", 0, 0, 0},
-		{"attempt 1", 1, 0, 20 * time.Millisecond},
-		{"attempt 2", 2, 10 * time.Millisecond, 30 * time.Millisecond},
-		{"attempt 3", 3, 20 * time.Millisecond, 100 * time.Millisecond},
+		{"attempt 0", 0, 5 * time.Millisecond, 10 * time.Millisecond},
+		{"attempt 1", 1, 10 * time.Millisecond, 20 * time.Millisecond},
+		{"attempt 2", 2, 20 * time.Millisecond, 40 * time.Millisecond},
+		{"attempt 3", 3, 40 * time.Millisecond, 80 * time.Millisecond},
+		{"attempt capped", 10, 50 * time.Millisecond, 100 * time.Millisecond},
 	}
 
 	for _, tt := range tests {

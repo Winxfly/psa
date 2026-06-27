@@ -70,11 +70,7 @@ func (c *client) setHeaders(req *http.Request) error {
 }
 
 func (c *client) calculateWait(attempt int) time.Duration {
-	if attempt == 0 {
-		return 0
-	}
-
-	baseDelay := float64(c.cfg.HHRetry.InitialDelay) * math.Pow(c.cfg.HHRetry.Multiplier, float64(attempt-1))
+	baseDelay := float64(c.cfg.HHRetry.InitialDelay) * math.Pow(c.cfg.HHRetry.Multiplier, float64(attempt))
 	if baseDelay > float64(c.cfg.HHRetry.MaxDelay) {
 		baseDelay = float64(c.cfg.HHRetry.MaxDelay)
 	}

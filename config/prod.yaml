@@ -27,8 +27,8 @@ http_server:
     max_age: 86400
 
 hh_retry:
-  max_attempts: 3
-  initial_delay: 250ms
+  max_attempts: 5
+  initial_delay: 1s
   max_delay: 15s
   multiplier: 2.0
   max_total_time: 45s
