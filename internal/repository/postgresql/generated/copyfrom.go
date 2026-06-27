@@ -78,3 +78,37 @@ func (r iteratorForInsertFormalSkills) Err() error {
 func (q *Queries) InsertFormalSkills(ctx context.Context, arg []InsertFormalSkillsParams) (int64, error) {
 	return q.db.CopyFrom(ctx, []string{"skill_formal"}, []string{"profession_id", "skill", "count", "scraped_at_id"}, &iteratorForInsertFormalSkills{rows: arg})
 }
+
+// iteratorForInsertSkillCorpus implements pgx.CopyFromSource.
+type iteratorForInsertSkillCorpus struct {
+	rows                 []InsertSkillCorpusParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForInsertSkillCorpus) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForInsertSkillCorpus) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].ProfessionID,
+		r.rows[0].Skill,
+		r.rows[0].MentionCount,
+	}, nil
+}
+
+func (r iteratorForInsertSkillCorpus) Err() error {
+	return nil
+}
+
+func (q *Queries) InsertSkillCorpus(ctx context.Context, arg []InsertSkillCorpusParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"skill_corpus"}, []string{"profession_id", "skill", "mention_count"}, &iteratorForInsertSkillCorpus{rows: arg})
+}

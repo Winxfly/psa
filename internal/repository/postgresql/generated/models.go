@@ -30,6 +30,13 @@ type Scraping struct {
 	ScrapedAt time.Time `json:"scraped_at"`
 }
 
+type SkillCorpu struct {
+	ProfessionID uuid.UUID `json:"profession_id"`
+	Skill        string    `json:"skill"`
+	MentionCount int32     `json:"mention_count"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type SkillExtracted struct {
 	ID           uuid.UUID `json:"id"`
 	ProfessionID uuid.UUID `json:"profession_id"`

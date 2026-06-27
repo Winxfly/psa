@@ -10,3 +10,10 @@ type Scraping struct {
 	ID        uuid.UUID `json:"id"`
 	ScrapedAt time.Time `json:"scraped_at"`
 }
+
+type ProfessionScrapeResult struct {
+	ProfessionID    uuid.UUID
+	VacancyCount    int
+	FormalSkills    map[string]int
+	ExtractedSkills map[string]int
+}

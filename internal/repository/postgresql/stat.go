@@ -8,17 +8,29 @@ import (
 	"github.com/google/uuid"
 
 	"psa/internal/domain"
-	postgresql "psa/internal/repository/postgresql/generated"
+	generated "psa/internal/repository/postgresql/generated"
 )
 
-func (s *Storage) SaveStat(ctx context.Context, sessionID uuid.UUID, professionID uuid.UUID, vacancyCount int) error {
-	_, err := s.Queries.InsertStat(ctx, postgresql.InsertStatParams{
+func (s *Storage) SaveStat(ctx context.Context, sessionID uuid.UUID,
+	professionID uuid.UUID, vacancyCount int) error {
+
+	return insertStat(ctx, s.Queries, sessionID, professionID, vacancyCount)
+}
+
+func insertStat(ctx context.Context, q *generated.Queries, sessionID uuid.UUID,
+	professionID uuid.UUID, vacancyCount int) error {
+	const op = "repository.postgresql.stat.insertStat"
+
+	_, err := q.InsertStat(ctx, generated.InsertStatParams{
 		ProfessionID: professionID,
 		VacancyCount: int32(vacancyCount),
 		ScrapedAtID:  sessionID,
 	})
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
 
-	return err
+	return nil
 }
 
 func (s *Storage) GetLatestStatByProfessionID(ctx context.Context, professionID uuid.UUID) (domain.Stat, error) {
@@ -36,7 +48,8 @@ func (s *Storage) GetLatestStatByProfessionID(ctx context.Context, professionID 
 	}, nil
 }
 
-func (s *Storage) GetStatsByProfessionsAndDateRange(ctx context.Context, professionIDs []uuid.UUID, startDate, endDate string) ([]domain.Stat, error) {
+func (s *Storage) GetStatsByProfessionsAndDateRange(ctx context.Context, professionIDs []uuid.UUID,
+	startDate, endDate string) ([]domain.Stat, error) {
 	const op = "repository.postgresql.stat.GetStatsByProfessionAndDateRange"
 
 	start, err := time.Parse(time.RFC3339, startDate)
@@ -49,7 +62,7 @@ func (s *Storage) GetStatsByProfessionsAndDateRange(ctx context.Context, profess
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	rows, err := s.Queries.GetStatsByProfessionsAndDateRange(ctx, postgresql.GetStatsByProfessionsAndDateRangeParams{
+	rows, err := s.Queries.GetStatsByProfessionsAndDateRange(ctx, generated.GetStatsByProfessionsAndDateRangeParams{
 		Column1:     professionIDs,
 		ScrapedAt:   start,
 		ScrapedAt_2: end,

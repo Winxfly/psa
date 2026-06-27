@@ -484,7 +484,7 @@ func TestSkillRepository(t *testing.T) {
 		require.Equal(t, int32(14), result2[2].Count)
 	})
 
-	t.Run("SaveFormalSkills_OverwriteSameSkill", func(t *testing.T) {
+	t.Run("SaveFormalSkills_DuplicateSkillReturnsError", func(t *testing.T) {
 		cleanSkillTables(ctx, t, storage)
 
 		professionID := createProfession(ctx, t, storage, "Backend Developer", "backend developer", true)
@@ -498,24 +498,22 @@ func TestSkillRepository(t *testing.T) {
 		err := storage.SaveFormalSkills(ctx, sessionID, professionID, skills1)
 		require.NoError(t, err)
 
-		// Затем обновляем count для того же навыка
+		// Затем пытаемся сохранить тот же skill в той же session.
 		skills2 := map[string]int{
 			"Go": 20,
 		}
 
 		err = storage.SaveFormalSkills(ctx, sessionID, professionID, skills2)
-		require.NoError(t, err)
+		require.Error(t, err)
 
-		// Тест
 		result, err := storage.GetFormalSkillsByProfessionAndDate(ctx, professionID, sessionID)
-
-		// Assert - проверяем что навык обновился (или добавился дубликат, в зависимости от реализации)
 		require.NoError(t, err)
-		// В текущей реализации INSERT без ON CONFLICT, поэтому будет 2 записи
-		require.Len(t, result, 2)
+		require.Len(t, result, 1)
+		require.Equal(t, "Go", result[0].Skill)
+		require.Equal(t, int32(10), result[0].Count)
 	})
 
-	t.Run("SaveExtractedSkills_OverwriteSameSkill", func(t *testing.T) {
+	t.Run("SaveExtractedSkills_DuplicateSkillReturnsError", func(t *testing.T) {
 		cleanSkillTables(ctx, t, storage)
 
 		professionID := createProfession(ctx, t, storage, "Backend Developer #2", "backend developer 2", true)
@@ -529,21 +527,19 @@ func TestSkillRepository(t *testing.T) {
 		err := storage.SaveExtractedSkills(ctx, sessionID, professionID, skills1)
 		require.NoError(t, err)
 
-		// Затем обновляем count для того же навыка
+		// Затем пытаемся сохранить тот же skill в той же session.
 		skills2 := map[string]int{
 			"Python": 25,
 		}
 
 		err = storage.SaveExtractedSkills(ctx, sessionID, professionID, skills2)
-		require.NoError(t, err)
+		require.Error(t, err)
 
-		// Тест
 		result, err := storage.GetExtractedSkillsByProfessionAndDate(ctx, professionID, sessionID)
-
-		// Assert - проверяем что навык обновился (или добавился дубликат, в зависимости от реализации)
 		require.NoError(t, err)
-		// В текущей реализации INSERT без ON CONFLICT, поэтому будет 2 записи
-		require.Len(t, result, 2)
+		require.Len(t, result, 1)
+		require.Equal(t, "Python", result[0].Skill)
+		require.Equal(t, int32(15), result[0].Count)
 	})
 
 	t.Run("SaveFormalSkills_InvalidProfession", func(t *testing.T) {
