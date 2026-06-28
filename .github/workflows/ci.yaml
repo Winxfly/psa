@@ -97,3 +97,16 @@ jobs:
              git reset --hard 'origin/$GITHUB_REF_NAME' && \
              make prod-pull && \
              make prod-up"
+
+      - name: Check production health
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+        run: |
+          : "${VPS_HOST:?VPS_HOST repository variable is required}"
+
+          curl -fsS \
+            --retry 5 \
+            --retry-delay 5 \
+            --retry-connrefused \
+            --max-time 10 \
+            "https://${VPS_HOST}/health/ready"
