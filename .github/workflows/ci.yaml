@@ -39,11 +39,11 @@ jobs:
         run: docker build -f cmd/psa/Dockerfile -t psa-backend:ci .
 
       - name: Login to GHCR
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build and push backend Docker image
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
         env:
           DOCKER_BUILDKIT: "1"
         run: |
@@ -56,3 +56,43 @@ jobs:
             .
           docker push "$IMAGE:latest"
           docker push "$IMAGE:${GITHUB_SHA}"
+
+  deploy:
+    name: Deploy to VPS
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy backend stack
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_PORT: ${{ vars.VPS_PORT || '22' }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_PROJECT_DIR: ${{ vars.VPS_PROJECT_DIR }}
+        run: |
+          : "${VPS_HOST:?VPS_HOST repository variable is required}"
+          : "${VPS_PORT:?VPS_PORT repository variable is required}"
+          : "${VPS_USER:?VPS_USER repository variable is required}"
+          : "${VPS_PROJECT_DIR:?VPS_PROJECT_DIR repository variable is required}"
+
+          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "cd '$VPS_PROJECT_DIR' && \
+             git fetch --prune origin && \
+             git reset --hard 'origin/$GITHUB_REF_NAME' && \
+             make prod-pull && \
+             make prod-up"

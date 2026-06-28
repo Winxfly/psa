@@ -9,6 +9,7 @@ Production-запуск backend-сервиса и инфраструктуры.
 - [Требования](#requirements)
 - [Подготовка](#setup)
 - [Production stack](#production-stack)
+- [CI/CD deploy](#cicd-deploy)
 - [Миграции и администратор](#migrations-admin)
 - [Схема доступа](#access)
 - [Проверка API](#api-check)
@@ -87,6 +88,51 @@ make prod-up
 - `alloy`
 
 Backend не публикуется наружу напрямую. Проверка API выполняется через Caddy.
+
+<a id="cicd-deploy"></a>
+## CI/CD deploy
+
+GitHub Actions публикует backend image в GHCR и после успешного CI деплоит default branch на VPS.
+
+Для deploy workflow нужны repository variables:
+
+- `VPS_HOST` - IP или домен сервера
+- `VPS_PORT` - SSH port, обычно `22`
+- `VPS_USER` - пользователь на VPS, например `psa`
+- `VPS_PROJECT_DIR` - путь к backend repo на VPS, например `/home/psa/psa`
+
+И repository secrets:
+
+- `VPS_SSH_PRIVATE_KEY` - private SSH key для deploy-доступа
+- `VPS_KNOWN_HOSTS` - SSH host key сервера
+
+Для deploy лучше использовать отдельный SSH key:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-psa-deploy" -f ~/.ssh/psa_github_actions_deploy
+```
+
+Public key нужно добавить пользователю на VPS в `~/.ssh/authorized_keys`.
+
+`VPS_KNOWN_HOSTS` можно получить так:
+
+```bash
+ssh-keyscan -p 22 <server>
+```
+
+Deploy workflow на сервере выполняет:
+
+```bash
+git fetch --prune origin
+git reset --hard origin/<default-branch>
+make prod-pull
+make prod-up
+```
+
+Поэтому в `VPS_PROJECT_DIR` не должно быть локальных незакоммиченных изменений.
+
+Если GHCR package закрытый, `make prod-pull` на VPS не сможет скачать backend image без `docker login ghcr.io`.
+Для публичного pet project проще сделать package public или заранее выполнить login на VPS с token, у которого есть `read:packages`.
 
 <a id="migrations-admin"></a>
 ## Миграции и администратор
