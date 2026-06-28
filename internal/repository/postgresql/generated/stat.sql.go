@@ -13,10 +13,11 @@ import (
 )
 
 const getLatestStatByProfessionID = `-- name: GetLatestStatByProfessionID :one
-SELECT profession_id, vacancy_count, scraped_at_id
-FROM stat
-WHERE profession_id = $1
-ORDER BY scraped_at_id DESC LIMIT 1
+SELECT st.profession_id, st.vacancy_count, st.scraped_at_id
+FROM stat st
+         JOIN scraping sc ON st.scraped_at_id = sc.id
+WHERE st.profession_id = $1
+ORDER BY sc.scraped_at DESC LIMIT 1
 `
 
 type GetLatestStatByProfessionIDRow struct {
