@@ -20,9 +20,8 @@ packages:
     interfaces:
       ProfessionProvider:
       SessionProvider:
-      SkillsProvider:
-      StatProvider:
-      DailyStatProvider:
+      SkillCorpusProvider:
+      ScrapeResultSaver:
       SupplierPort:
       Extractor:
       CacheProvider:

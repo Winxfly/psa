@@ -64,7 +64,6 @@ func Run(cfg *config.Config, log *slog.Logger) error {
 		db,
 		db,
 		db,
-		db,
 		hhClient,
 		skillExtractor,
 		cache,
