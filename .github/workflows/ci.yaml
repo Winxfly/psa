@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    name: Test, lint and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Run linter
+        run: make lint
+
+      - name: Build backend Docker image
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: docker build -f cmd/psa/Dockerfile -t psa-backend:ci .
