@@ -102,9 +102,7 @@ services:
 
   backend:
     logging: *default-logging
-    build:
-      context: .
-      dockerfile: cmd/psa/Dockerfile
+    image: ${BACKEND_IMAGE:-ghcr.io/winxfly/psa-backend:latest}
     depends_on:
       postgres:
         condition: service_healthy

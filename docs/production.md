@@ -61,13 +61,21 @@ GRAFANA_HOST_PORT=3001
 <a id="production-stack"></a>
 ## Production stack
 
+Скачать production images:
+
+```bash
+make prod-pull
+```
+
+Команда скачивает backend image из GHCR и образы инфраструктурных сервисов.
+
 Поднять production stack:
 
 ```bash
 make prod-up
 ```
 
-Команда поднимает:
+Команда запускает:
 
 - `caddy`
 - `backend`

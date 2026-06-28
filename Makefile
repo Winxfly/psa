@@ -4,9 +4,13 @@ MIGRATE_VERSION := v4.18.3
 
 # Основные prod-команды
 
+# Скачать свежие production-образы
+prod-pull:
+	$(DOCKER_COMPOSE_PROD) pull
+
 # Поднять production-стек
 prod-up:
-	$(DOCKER_COMPOSE_PROD) up --build -d --remove-orphans caddy backend prometheus grafana loki alloy
+	$(DOCKER_COMPOSE_PROD) up -d --remove-orphans caddy backend prometheus grafana loki alloy
 
 # Остановить production-стек
 prod-down:
