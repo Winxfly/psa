@@ -1,15 +1,20 @@
 DOCKER_COMPOSE := docker compose --project-directory . --env-file .env -f infra/docker-compose.yaml
 DOCKER_COMPOSE_PROD := docker compose --project-directory . --env-file .env -f infra/docker-compose.prod.yaml
 MIGRATE_VERSION := v4.18.3
+PSA_NETWORK ?= psa-network
 
 # Основные prod-команды
+
+# Создать общую production-сеть для backend и frontend
+prod-ensure-network:
+	docker network inspect $(PSA_NETWORK) >/dev/null 2>&1 || docker network create $(PSA_NETWORK)
 
 # Скачать свежие production-образы
 prod-pull:
 	$(DOCKER_COMPOSE_PROD) pull
 
 # Поднять production-стек
-prod-up:
+prod-up: prod-ensure-network
 	$(DOCKER_COMPOSE_PROD) up -d --remove-orphans caddy backend prometheus grafana loki alloy
 
 # Остановить production-стек

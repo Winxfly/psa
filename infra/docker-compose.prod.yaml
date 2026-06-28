@@ -195,4 +195,5 @@ volumes:
 
 networks:
   psa-network:
-    driver: bridge
+    name: ${PSA_NETWORK:-psa-network}
+    external: true

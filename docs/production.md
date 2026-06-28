@@ -47,6 +47,7 @@ CORS_ALLOWED_ORIGINS=https://example.com
 DB_HOST_PORT=5433
 PROMETHEUS_HOST_PORT=9090
 GRAFANA_HOST_PORT=3001
+PSA_NETWORK=psa-network
 ```
 
 Также нужно заменить значения секретов и паролей:
@@ -302,10 +303,15 @@ make prod-down
 
 Frontend находится в отдельном репозитории: [psa-front](https://github.com/Winxfly/psa-front).
 
-Frontend разворачивается отдельно. Для production важно, чтобы backend `.env` разрешал origin frontend-приложения:
+Frontend разворачивается отдельно как internal-only container в общей Docker network `psa-network`. Он не публикует порт наружу и не занимается TLS.
 
-```env
-CORS_ALLOWED_ORIGINS=https://example.com
-```
+Caddy остается в backend/infrastructure stack и терминирует HTTPS.
 
-Текущий Caddyfile уже проксирует `/api/*`, `/health/live`, `/health/ready` в backend, а финальная маршрутизация frontend зависит от схемы деплоя frontend.
+Production routing:
+
+- `/` -> frontend container `frontend:80`
+- `/api/*` -> backend `backend:8080`
+- `/health/live` -> backend `backend:8080`
+- `/health/ready` -> backend `backend:8080`
+
+Браузерный frontend ходит в API same-origin через `/api/v1`, поэтому frontend production `.env` не нужен.
