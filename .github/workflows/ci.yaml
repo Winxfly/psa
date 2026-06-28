@@ -4,6 +4,14 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: psa-backend
+
 jobs:
   ci:
     name: Test, lint and build
@@ -29,3 +37,22 @@ jobs:
         env:
           DOCKER_BUILDKIT: "1"
         run: docker build -f cmd/psa/Dockerfile -t psa-backend:ci .
+
+      - name: Login to GHCR
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push backend Docker image
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          IMAGE="${REGISTRY}/${OWNER}/${IMAGE_NAME}"
+
+          docker build -f cmd/psa/Dockerfile \
+            -t "$IMAGE:latest" \
+            -t "$IMAGE:${GITHUB_SHA}" \
+            .
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${GITHUB_SHA}"
