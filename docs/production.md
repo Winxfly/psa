@@ -10,6 +10,7 @@ Production-запуск backend-сервиса и инфраструктуры.
 - [Подготовка](#setup)
 - [Production stack](#production-stack)
 - [CI/CD deploy](#cicd-deploy)
+- [Rollback](#rollback)
 - [Миграции и администратор](#migrations-admin)
 - [Схема доступа](#access)
 - [Проверка API](#api-check)
@@ -133,6 +134,49 @@ make prod-up
 
 Если GHCR package закрытый, `make prod-pull` на VPS не сможет скачать backend image без `docker login ghcr.io`.
 Для публичного pet project проще сделать package public или заранее выполнить login на VPS с token, у которого есть `read:packages`.
+
+<a id="rollback"></a>
+## Rollback
+
+Каждый push в default branch публикует backend image с двумя тегами:
+
+- `latest`
+- commit SHA, например `ghcr.io/winxfly/psa-backend:<commit-sha>`
+
+Обычный production-режим использует `latest`:
+
+```env
+BACKEND_IMAGE=ghcr.io/winxfly/psa-backend:latest
+```
+
+Если после deploy нужно временно откатиться на предыдущий backend image, на VPS можно закрепить конкретный SHA-tag в `.env`:
+
+```env
+BACKEND_IMAGE=ghcr.io/winxfly/psa-backend:<previous-commit-sha>
+```
+
+После изменения `.env`:
+
+```bash
+make prod-pull
+make prod-up
+curl https://example.com/health/ready
+```
+
+Когда причина проблемы исправлена, вернуть обычный режим:
+
+```env
+BACKEND_IMAGE=ghcr.io/winxfly/psa-backend:latest
+```
+
+И снова применить:
+
+```bash
+make prod-pull
+make prod-up
+```
+
+Перед крупным rollback или deploy желательно сделать `pg_dump`, если изменения могли затронуть схему или данные.
 
 <a id="migrations-admin"></a>
 ## Миграции и администратор
