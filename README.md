@@ -2,6 +2,8 @@
 
 Сервис для анализа востребованных профессиональных навыков на основе данных hh.ru API.
 
+Сервис доступен по адресу: [govkalik.ru](https://govkalik.ru).
+
 *Проект на стадии MVP*
 
 ## Оглавление
@@ -55,9 +57,9 @@ PSA автоматически собирает вакансии по задан
 - Тестирование: unit/integration tests, [testcontainers-go](https://github.com/testcontainers/testcontainers-go)
 - Генерация моков: [mockery](https://github.com/vektra/mockery)
 - Линтинг: [golangci-lint](https://github.com/golangci/golangci-lint)
+- CI/CD: GitHub Actions
 
 Многие вещи в проекте можно было сделать проще, но я сознательно сделал его шире, чтобы на практике разобраться с разными частями backend-разработки.
-
 
 <a id="how-it-works"></a>
 ## Как это работает
